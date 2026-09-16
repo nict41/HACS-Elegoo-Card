@@ -1,0 +1,15 @@
+{
+  "name": "hacs-elegoo-card",
+  "version": "1.0.0",
+  "description": "A Lovelace card for printers exposed by the elegoo_printer Home Assistant integration",
+  "private": true,
+  "scripts": {
+    "test": "node test/resolution.test.js && node test/render.test.js",
+    "test:resolution": "node test/resolution.test.js",
+    "test:render": "node test/render.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  },
+  "license": "MIT"
+}
