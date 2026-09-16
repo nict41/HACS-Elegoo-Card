@@ -11,7 +11,7 @@
     "logo": "node tools/render-svg.mjs assets/logo.svg assets/logo.png 256 256 && node tools/render-svg.mjs assets/banner.svg assets/banner.png 1200 300"
   },
   "devDependencies": {
-    "jsdom": "^24.0.0"
+    "jsdom": "^30.0.1"
   },
   "license": "MIT",
   "repository": {
