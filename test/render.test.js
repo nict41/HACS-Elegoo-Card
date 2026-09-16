@@ -506,6 +506,103 @@ console.log("\n--- reported regressions ---");
 }
 
 // ---------------------------------------------------------------------------
+// Re-render churn
+//
+// The card re-renders whenever any watched state changes, which during a print
+// is every few seconds. Rebuilding the whole card would detach the media
+// element -- aborting a streaming <img> -- and would drop focus from a control
+// the user is using.
+// ---------------------------------------------------------------------------
+console.log("\n--- re-render churn ---");
+{
+  const { hass } = makeHass("printing");
+  const card = dom.window.document.createElement("elegoo-printer-card");
+  card.setConfig({ type: "custom:elegoo-printer-card", device_id: DEV, show_camera: "always" });
+  dom.window.document.body.appendChild(card);
+  card.hass = hass;
+
+  const img = card.shadowRoot.querySelector(".media img");
+  const holder = card.shadowRoot.querySelector(".media");
+  const slot = card.shadowRoot.querySelector("ha-card").children[1];
+  ok("churn: stream is open", !!img && img.src.includes("camera_proxy_stream"), img && img.src);
+
+  // a print ticking over: temps, layer and percentage all changing
+  let stayedConnected = true;
+  for (let i = 1; i <= 6; i++) {
+    hass.states = {
+      ...hass.states,
+      [`sensor.${P}_nozzle_temperature`]: { state: String(210 + i), attributes: { unit_of_measurement: "\u00b0C" } },
+      [`sensor.${P}_bed_temperature`]: { state: String(59 + i), attributes: { unit_of_measurement: "\u00b0C" } },
+      [`sensor.${P}_current_layer`]: { state: String(194 + i), attributes: {} },
+      [`sensor.${P}_percent_complete`]: { state: String(63 + i), attributes: { unit_of_measurement: "%" } },
+    };
+    card.hass = hass;
+    if (!img.isConnected) stayedConnected = false;
+  }
+
+  ok("churn: media element never detached", stayedConnected);
+  ok("churn: same <img> instance", card.shadowRoot.querySelector(".media img") === img);
+  ok("churn: same media container", card.shadowRoot.querySelector(".media") === holder);
+  ok("churn: same media slot", card.shadowRoot.querySelector("ha-card").children[1] === slot);
+  ok("churn: src never rewritten", card.shadowRoot.querySelector(".media img").src === img.src);
+  // ...while the rest of the card did keep up
+  ok("churn: body still updated", card.shadowRoot.innerHTML.includes("Layer 200 / 305"), "layer row");
+  ok("churn: temps still updated", card.shadowRoot.innerHTML.includes("216"));
+  card.remove();
+}
+
+{
+  // A control in use must not be yanked away mid-interaction.
+  const { hass } = makeHass("printing");
+  const card = dom.window.document.createElement("elegoo-printer-card");
+  card.setConfig({ type: "custom:elegoo-printer-card", device_id: DEV });
+  dom.window.document.body.appendChild(card);
+  card.hass = hass;
+
+  const input = card.shadowRoot.querySelector('input[data-action="set-number"]');
+  input.focus();
+  const focusWorks = card.shadowRoot.activeElement === input;
+  input.value = "250"; // mid-typing
+
+  hass.states = {
+    ...hass.states,
+    [`sensor.${P}_nozzle_temperature`]: { state: "211.9", attributes: { unit_of_measurement: "\u00b0C" } },
+  };
+  card.hass = hass;
+
+  if (focusWorks) {
+    ok("focus: input not replaced while focused", card.shadowRoot.querySelector('input[data-action="set-number"]') === input);
+    ok("focus: typed value preserved", input.value === "250", input.value);
+    ok("focus: still the active element", card.shadowRoot.activeElement === input);
+
+    // once focus really leaves, the deferred update is applied
+    input.blur();
+    input.dispatchEvent(new dom.window.FocusEvent("focusout", { bubbles: true, composed: true }));
+    await flush();
+    ok("focus: deferred update applied on blur", card.shadowRoot.innerHTML.includes("211.9"));
+  } else {
+    console.log("  (skipped: shadowRoot.activeElement unsupported here)");
+  }
+
+  // a select mid-use is protected the same way
+  const sel = card.shadowRoot.querySelector('select[data-action="select-option"]');
+  sel.focus();
+  if (card.shadowRoot.activeElement === sel) {
+    hass.states = {
+      ...hass.states,
+      [`sensor.${P}_bed_temperature`]: { state: "61.4", attributes: { unit_of_measurement: "\u00b0C" } },
+    };
+    card.hass = hass;
+    ok("focus: select not replaced while focused", card.shadowRoot.querySelector('select[data-action="select-option"]') === sel);
+    sel.blur();
+    sel.dispatchEvent(new dom.window.FocusEvent("focusout", { bubbles: true, composed: true }));
+    await flush();
+    ok("focus: select update applied on blur", card.shadowRoot.innerHTML.includes("61.4"));
+  }
+  card.remove();
+}
+
+// ---------------------------------------------------------------------------
 // Confirmation dialogs
 // ---------------------------------------------------------------------------
 console.log("\n--- confirmations ---");

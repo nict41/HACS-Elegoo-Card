@@ -8,7 +8,7 @@ globalThis.document = { createElement: () => ({ setAttribute(){}, addEventListen
 globalThis.window = globalThis;
 globalThis.CustomEvent = class {};
 
-const api = new Function(src + "\nreturn { resolveEntities, deriveStatus, durationSeconds, formatDuration, matchEntry, findPrinterDevices, safeColor, KEY_DEFS };")();
+const api = new Function(src + "\nreturn { resolveEntities, deriveStatus, durationSeconds, formatDuration, matchEntry, findPrinterDevices, safeColor, withCacheKey, KEY_DEFS };")();
 
 let pass = 0, fail = 0;
 const eq = (name, got, want) => {
@@ -212,6 +212,15 @@ eq("format 5400s", api.formatDuration(5400), "1h 30m");
 eq("format 900s", api.formatDuration(900), "15m");
 eq("format 45s", api.formatDuration(45), "45s");
 eq("format null", api.formatDuration(null), null);
+
+console.log("\n=== cache keys ===");
+eq("HA proxy path gets a key", api.withCacheKey("/api/image_proxy/image.x?token=a", "T1"), "/api/image_proxy/image.x?token=a&_ts=T1");
+eq("path without a query", api.withCacheKey("/api/image_proxy/image.x", "T1"), "/api/image_proxy/image.x?_ts=T1");
+eq("timestamp is encoded", api.withCacheKey("/a", "2026-09-16T15:40:00+00:00"), "/a?_ts=2026-09-16T15%3A40%3A00%2B00%3A00");
+// an extra parameter would corrupt a data URI or break a pre-signed URL
+eq("data: URI untouched", api.withCacheKey("data:image/png;base64,AAAA", "T1"), "data:image/png;base64,AAAA");
+eq("absolute URL untouched", api.withCacheKey("https://cdn.example/x.png?sig=abc", "T1"), "https://cdn.example/x.png?sig=abc");
+eq("no key -> unchanged", api.withCacheKey("/a", null), "/a");
 
 console.log("\n=== colour sanitising ===");
 eq("hex passthrough", api.safeColor("#FF8800"), "#FF8800");

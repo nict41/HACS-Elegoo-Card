@@ -27,8 +27,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const out = resolve(root, "docs/images");
 mkdirSync(out, { recursive: true });
 
-const dataUri = (file) =>
-  "data:image/png;base64," + readFileSync(resolve(root, file)).toString("base64");
+const PREVIEW_ORIGIN = "http://localhost:8123";
+const png = (file) => readFileSync(resolve(root, file));
 
 // Home Assistant's default theme variables, so the card is styled exactly as it
 // is on a real dashboard.
@@ -92,7 +92,22 @@ const SHOTS = [
 const browser = await chromium.launch();
 for (const shot of SHOTS) {
   const page = await browser.newPage({ viewport: { width: 440, height: 1200 }, deviceScaleFactor: 2 });
-  await page.setContent(shell(shot.theme));
+
+  // Serve the page from a real origin so the card's root-relative media URLs
+  // resolve, and fulfil those requests with the placeholder artwork.
+  await page.route(`${PREVIEW_ORIGIN}/`, (route) =>
+    route.fulfill({ contentType: "text/html", body: shell(shot.theme) })
+  );
+  await page.route("**/api/image_proxy/**", (route) =>
+    route.fulfill({ contentType: "image/png", body: png("tools/preview-cover.png") })
+  );
+  await page.route("**/api/camera_proxy_stream/**", (route) =>
+    route.fulfill({ contentType: "image/png", body: png("tools/preview-chamber.png") })
+  );
+  await page.route("**/api/camera_proxy/**", (route) =>
+    route.fulfill({ contentType: "image/png", body: png("tools/preview-chamber.png") })
+  );
+  await page.goto(`${PREVIEW_ORIGIN}/`);
   await page.addScriptTag({ path: resolve(root, "dist/elegoo-printer-card.js") });
 
   await page.evaluate(
@@ -106,10 +121,7 @@ for (const shot of SHOTS) {
       window.__card = card;
     },
     {
-      hass: buildHass(shot.scenario, {
-        cover: dataUri("tools/preview-cover.png"),
-        chamber: dataUri("tools/preview-chamber.png"),
-      }),
+      hass: buildHass(shot.scenario, { cover: true, chamber: true }),
       config: shot.config,
     }
   );

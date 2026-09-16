@@ -10,7 +10,7 @@
  * @license MIT
  */
 
-const CARD_VERSION = "1.1.1";
+const CARD_VERSION = "1.1.2";
 
 /* ===========================================================================
  * ENTITY RESOLUTION TABLE
@@ -238,6 +238,11 @@ function localizeState(hass, stateObj) {
  */
 function withCacheKey(url, key) {
   if (!url || !key) return url;
+  // Only Home Assistant's own proxy paths are safe to add a parameter to. An
+  // entity may carry an absolute or data: URL instead (entity_picture can be
+  // set to anything), where an extra query parameter would corrupt a data URI
+  // or invalidate a pre-signed URL.
+  if (url.charAt(0) !== "/") return url;
   return url + (url.indexOf("?") >= 0 ? "&" : "?") + "_ts=" + encodeURIComponent(key);
 }
 
@@ -985,6 +990,8 @@ class ElegooPrinterCard extends HTMLElement {
     this._resolutionKey = null;
     this._mediaKey = null;
     this._mediaEl = null;
+    this._mediaSlotState = null;
+    this._bodyDirty = false;
     this._mediaFailed = Object.create(null);
     this._cameraRevealed = false;
     this._confirmKeys = new Set(DEFAULT_CONFIRM_KEYS);
@@ -1045,6 +1052,7 @@ class ElegooPrinterCard extends HTMLElement {
     this._resolutionKey = null;
     this._mediaFailed = Object.create(null);
     this._cameraRevealed = false;
+    this._mediaSlotState = null;
     this._releaseMedia();
     if (this._hass) this._update();
   }
@@ -1085,16 +1093,62 @@ class ElegooPrinterCard extends HTMLElement {
 
   /* --- update pipeline --------------------------------------------------- */
 
+  /**
+   * Build the card's permanent skeleton.
+   *
+   * Header, media and body are separate persistent nodes, and a re-render only
+   * replaces the contents of the header and body. The media element is never
+   * detached: removing a streaming <img> from the document aborts its load, and
+   * this card re-renders every few seconds during a print as the temperatures
+   * and layer counter tick over.
+   */
   _ensureShell() {
     if (this._built) return;
     const style = document.createElement("style");
     style.textContent = CARD_STYLES;
     this.shadowRoot.appendChild(style);
+
     this._root = document.createElement("ha-card");
+    this._headerEl = document.createElement("div");
+    this._mediaSlot = document.createElement("div");
+    this._bodyEl = document.createElement("div");
+    this._root.appendChild(this._headerEl);
+    this._root.appendChild(this._mediaSlot);
+    this._root.appendChild(this._bodyEl);
     this.shadowRoot.appendChild(this._root);
+
     this.shadowRoot.addEventListener("click", (ev) => this._onClick(ev));
     this.shadowRoot.addEventListener("change", (ev) => this._onChange(ev));
+    // Body updates are held back while a control has focus, so apply whatever
+    // was skipped once focus leaves it.
+    this.shadowRoot.addEventListener("focusout", () => {
+      if (!this._bodyDirty) return;
+      // During focusout the outgoing element can still be the active element,
+      // and focus may be moving to another control in the body. Let it settle,
+      // then re-check rather than deciding here.
+      setTimeout(() => {
+        if (!this._bodyDirty || this._bodyHasFocus()) return;
+        this._bodyDirty = false;
+        this._fingerprint = null;
+        this._update();
+      }, 0);
+    });
     this._built = true;
+  }
+
+  /**
+   * True while the user is typing in, or dragging, a control in the body.
+   *
+   * Replacing the body's markup underneath them drops focus and the caret, and
+   * closes an open dropdown. Buttons are excluded: they keep focus after a
+   * click, which would otherwise stall updates indefinitely.
+   */
+  _bodyHasFocus() {
+    const active = this.shadowRoot.activeElement;
+    if (!active) return false;
+    const tag = active.tagName;
+    if (tag !== "INPUT" && tag !== "SELECT") return false;
+    return this._bodyEl.contains(active);
   }
 
   _resolveDeviceId() {
@@ -1193,7 +1247,10 @@ class ElegooPrinterCard extends HTMLElement {
 
   _renderNotice(html) {
     this._releaseMedia();
-    this._root.innerHTML = '<div class="notice">' + html + "</div>";
+    this._mediaSlotState = null;
+    this._headerEl.innerHTML = "";
+    this._mediaSlot.innerHTML = "";
+    this._bodyEl.innerHTML = '<div class="notice">' + html + "</div>";
   }
 
   /* --- state accessors --------------------------------------------------- */
@@ -1231,19 +1288,10 @@ class ElegooPrinterCard extends HTMLElement {
     const status = deriveStatus(this._hass, this._entities);
     const media = this._config.show_media
       ? this._mediaState(status)
-      : { target: null, cameraToggle: null };
-    if (!media.target) this._releaseMedia();
+      : { target: null, cameraToggle: null, cameraError: false };
 
-    const sections = [
-      this._renderHeader(deviceId, status),
-      media.target
-        ? '<div class="media" id="media"></div>'
-        : media.cameraError
-          ? this._renderCameraError(media.cameraToggle)
-          : media.cameraToggle === "show"
-            ? '<div class="media-bar">' + this._cameraToggleButton("show") + "</div>"
-            : "",
-    ];
+    this._headerEl.innerHTML = this._renderHeader(deviceId, status);
+    this._updateMediaSlot(media);
 
     const body = [];
     if (this._config.show_progress) body.push(this._renderProgress(status));
@@ -1252,10 +1300,15 @@ class ElegooPrinterCard extends HTMLElement {
     if (this._config.show_controls) body.push(this._renderControls(status));
 
     const filled = body.filter(Boolean);
-    if (filled.length) sections.push('<div class="content">' + filled.join("") + "</div>");
+    const html = filled.length ? '<div class="content">' + filled.join("") + "</div>" : "";
 
-    this._root.innerHTML = sections.filter(Boolean).join("");
-    if (media.target) this._updateMedia(media.target, media.cameraToggle);
+    if (this._bodyHasFocus()) {
+      // Re-apply once the control is released rather than yanking it away.
+      this._bodyDirty = true;
+      return;
+    }
+    this._bodyDirty = false;
+    if (this._bodyEl.innerHTML !== html) this._bodyEl.innerHTML = html;
   }
 
   _renderHeader(deviceId, status) {
@@ -1385,16 +1438,19 @@ class ElegooPrinterCard extends HTMLElement {
   }
 
   /** Explains a failed camera request instead of quietly reverting. */
-  _renderCameraError(cameraToggle) {
+  _cameraErrorDetail() {
     const connected = numState(this._st("video_stream_connected"));
     const max = numState(this._st("video_stream_max"));
     const atCapacity = connected !== null && max !== null && max > 0 && connected >= max;
-    const detail = atCapacity
+    return atCapacity
       ? "The printer is already serving " + connected + " of " + max +
         " allowed video streams. Close another viewer and try again."
       : "The printer did not return a video stream. It may be busy, off, or " +
         "still starting up.";
+  }
 
+  _renderCameraError(cameraToggle) {
+    const detail = this._cameraErrorDetail();
     return (
       '<div class="media-bar media-error">' +
       '<div class="media-error-title">Camera unavailable</div>' +
@@ -1430,36 +1486,68 @@ class ElegooPrinterCard extends HTMLElement {
     this._mediaKey = null;
   }
 
-  _updateMedia(target, cameraToggle) {
-    const slot = this.shadowRoot.getElementById("media");
-    if (!slot) return;
-    slot.innerHTML =
-      '<span class="media-label">' + esc(target.label) + "</span>" +
-      (cameraToggle
-        ? '<div class="media-actions">' + this._cameraToggleButton(cameraToggle) + "</div>"
-        : "");
+  /**
+   * Identity of the media area's contents. While this is unchanged the slot is
+   * left completely alone, so a running stream survives unrelated updates.
+   */
+  _mediaSlotKey(media) {
+    if (media.target) {
+      return ["t", media.target.kind, media.target.entity, media.target.src,
+              media.cameraToggle || ""].join("|");
+    }
+    if (media.cameraError) {
+      return ["e", media.cameraToggle || "", this._cameraErrorDetail()].join("|");
+    }
+    return ["n", media.cameraToggle || ""].join("|");
+  }
 
-    const key = target.kind + "|" + target.entity + "|" + target.src;
-    if (this._mediaKey !== key || !this._mediaEl) {
+  _updateMediaSlot(media) {
+    const key = this._mediaSlotKey(media);
+    if (key === this._mediaSlotState) return;
+    this._mediaSlotState = key;
+
+    if (!media.target) {
+      this._releaseMedia();
+      this._mediaSlot.innerHTML = media.cameraError
+        ? this._renderCameraError(media.cameraToggle)
+        : media.cameraToggle === "show"
+          ? '<div class="media-bar">' + this._cameraToggleButton("show") + "</div>"
+          : "";
+      return;
+    }
+
+    const target = media.target;
+    this._mediaSlot.innerHTML =
+      '<div class="media">' +
+      '<span class="media-label">' + esc(target.label) + "</span>" +
+      (media.cameraToggle
+        ? '<div class="media-actions">' + this._cameraToggleButton(media.cameraToggle) + "</div>"
+        : "") +
+      "</div>";
+    const holder = this._mediaSlot.firstElementChild;
+
+    const elementKey = target.kind + "|" + target.entity + "|" + target.src;
+    if (this._mediaKey !== elementKey || !this._mediaEl) {
       this._releaseMedia();
       const img = document.createElement("img");
       img.alt = target.label;
       img.setAttribute("data-action", "more-info");
       img.setAttribute("data-entity", target.entity);
       img.addEventListener("error", () => {
-        // A camera that is offline, or a job with no thumbnail yet: drop the
-        // media area rather than leaving a broken image in the card.
+        // A camera that is offline, a stream the printer will not open, or a
+        // job with no thumbnail yet: fall through to the next source rather
+        // than leaving a broken image in the card.
         this._mediaFailed[target.src] = true;
-        this._mediaKey = null;
-        this._mediaEl = null;
+        this._releaseMedia();
+        this._mediaSlotState = null;
         this._fingerprint = null;
         this._update();
       });
       img.src = target.src;
       this._mediaEl = img;
-      this._mediaKey = key;
+      this._mediaKey = elementKey;
     }
-    slot.insertBefore(this._mediaEl, slot.firstChild);
+    holder.insertBefore(this._mediaEl, holder.firstChild);
   }
 
   /* --- progress ---------------------------------------------------------- */
@@ -1920,6 +2008,7 @@ class ElegooPrinterCard extends HTMLElement {
       if (!this._cameraRevealed) this._releaseMedia();
       // Forget past failures so re-showing actually retries.
       this._mediaFailed = Object.create(null);
+      this._mediaSlotState = null;
       this._fingerprint = null;
       this._update();
       return;
@@ -1927,6 +2016,7 @@ class ElegooPrinterCard extends HTMLElement {
 
     if (action === "camera-retry") {
       this._mediaFailed = Object.create(null);
+      this._mediaSlotState = null;
       this._cameraRevealed = true;
       this._fingerprint = null;
       this._update();

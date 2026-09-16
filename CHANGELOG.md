@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-09-16
+
+### Fixed
+
+- The card rebuilt its entire DOM on every state change, which during a print
+  is every few seconds as temperatures and the layer counter tick over. That
+  detached and re-attached the media element — aborting a chamber camera's
+  MJPEG stream each time and repeatedly reopening connections against the
+  printer's limited number of simultaneous stream viewers — and dropped focus
+  from any control in use, closing an open speed dropdown and clearing the
+  caret in a target temperature box. The header, media and body are now
+  separate persistent nodes; the media area is only touched when the media
+  itself changes, and body updates are held back while a control has focus and
+  applied once it is released.
+- The image cache key added in 1.1.1 was applied to any URL. It is now limited
+  to Home Assistant's own proxy paths, since an extra query parameter corrupts
+  a `data:` URI and can invalidate a pre-signed URL.
+
 ## [1.1.1] - 2026-09-16
 
 ### Fixed
@@ -53,6 +71,7 @@ First tagged release.
 - Test suite covering entity resolution and jsdom rendering, and a Playwright
   tool that regenerates the README screenshots from the shipped card.
 
-[Unreleased]: https://github.com/nict41/HACS-Elegoo-Card/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/nict41/HACS-Elegoo-Card/compare/v1.1.2...HEAD
+[1.1.2]: https://github.com/nict41/HACS-Elegoo-Card/releases/tag/v1.1.2
 [1.1.1]: https://github.com/nict41/HACS-Elegoo-Card/releases/tag/v1.1.1
 [1.1.0]: https://github.com/nict41/HACS-Elegoo-Card/releases/tag/v1.1.0

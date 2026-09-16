@@ -40,8 +40,20 @@ export function buildHass(scenario, media = {}) {
   add(`sensor.${P}_enclosure_fan_speed`, "box_fan_speed", 0, { unit_of_measurement: "%" });
 
   add(`binary_sensor.${P}_sdcp_status`, "sdcp_status", "on");
-  if (media.cover) add(`image.${P}_cover_image`, "cover_image", "2026-09-16T09:12:00+00:00", { entity_picture: media.cover });
-  if (media.chamber) add(`camera.${P}_chamber_camera`, "chamber_camera", "idle", { entity_picture: media.chamber });
+  // Real Home Assistant proxy paths, so the card's own URL handling (the
+  // camera_proxy -> camera_proxy_stream swap, and the image cache key) is
+  // exercised exactly as it is in production. The screenshot tool intercepts
+  // these requests and serves the placeholder artwork.
+  if (media.cover) {
+    add(`image.${P}_cover_image`, "cover_image", "2026-09-16T09:12:00+00:00", {
+      entity_picture: `/api/image_proxy/image.${P}_cover_image?token=preview`,
+    });
+  }
+  if (media.chamber) {
+    add(`camera.${P}_chamber_camera`, "chamber_camera", "idle", {
+      entity_picture: `/api/camera_proxy/camera.${P}_chamber_camera?token=preview`,
+    });
+  }
 
   add(`light.${P}_chamber_light`, "second_light", "on");
   add(`select.${P}_print_speed`, "print_speed", "Balanced", { options: ["Silent", "Balanced", "Sport", "Ludicrous"] });
