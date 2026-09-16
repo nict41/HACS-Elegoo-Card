@@ -1,15 +1,28 @@
 {
   "name": "hacs-elegoo-card",
-  "version": "1.0.0",
-  "description": "A Lovelace card for printers exposed by the elegoo_printer Home Assistant integration",
+  "version": "1.1.0",
+  "description": "A Lovelace card for 3D printers exposed by the elegoo_printer Home Assistant integration",
   "private": true,
   "scripts": {
     "test": "node test/resolution.test.js && node test/render.test.js",
     "test:resolution": "node test/resolution.test.js",
-    "test:render": "node test/render.test.js"
+    "test:render": "node test/render.test.js",
+    "screenshots": "node tools/screenshot.mjs",
+    "logo": "node tools/render-svg.mjs assets/logo.svg assets/logo.png 256 256 && node tools/render-svg.mjs assets/banner.svg assets/banner.png 1200 300"
   },
   "devDependencies": {
     "jsdom": "^24.0.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nict41/HACS-Elegoo-Card.git"
+  },
+  "keywords": [
+    "home-assistant",
+    "lovelace",
+    "hacs",
+    "elegoo",
+    "3d-printing"
+  ]
 }

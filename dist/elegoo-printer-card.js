@@ -10,7 +10,7 @@
  * @license MIT
  */
 
-const CARD_VERSION = "1.0.0";
+const CARD_VERSION = "1.1.0";
 
 /* ===========================================================================
  * ENTITY RESOLUTION TABLE
@@ -528,13 +528,13 @@ const CARD_STYLES = `
     cursor: pointer;
   }
   .badge[data-category="idle"] {
-    --status-color: var(--state-icon-color, var(--secondary-text-color));
+    --status-color: var(--secondary-text-color, #727272);
   }
   .badge[data-category="printing"] {
-    --status-color: var(--state-icon-active-color, var(--info-color, #2196f3));
+    --status-color: var(--info-color, #039be5);
   }
   .badge[data-category="busy"] {
-    --status-color: var(--info-color, #4fc3f7);
+    --status-color: var(--state-icon-color, #44739e);
   }
   .badge[data-category="paused"] { --status-color: var(--warning-color, #ffa726); }
   .badge[data-category="error"] { --status-color: var(--error-color, #db4437); }
@@ -609,7 +609,7 @@ const CARD_STYLES = `
     display: block;
     height: 100%;
     border-radius: 4px;
-    background: var(--state-icon-active-color, var(--primary-color));
+    background: var(--primary-color, #03a9f4);
     transition: width 0.4s ease;
   }
   .progress-meta {
@@ -646,7 +646,12 @@ const CARD_STYLES = `
     font-size: 0.98rem;
     color: var(--primary-text-color);
   }
-  .cell-value .target { color: var(--secondary-text-color); font-size: 0.85rem; }
+  .cell-target {
+    display: block;
+    margin-top: 1px;
+    font-size: 0.8rem;
+    color: var(--secondary-text-color);
+  }
 
   /* --- filament ---------------------------------------------------------- */
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -662,7 +667,7 @@ const CARD_STYLES = `
     cursor: pointer;
   }
   .chip[data-active="true"] {
-    outline: 2px solid var(--state-icon-active-color, var(--primary-color));
+    outline: 2px solid var(--primary-color, #03a9f4);
     outline-offset: -2px;
   }
   .swatch {
@@ -674,6 +679,12 @@ const CARD_STYLES = `
     background: var(--swatch-color, transparent);
   }
   .chip-sub { color: var(--secondary-text-color); }
+  .chip-lead {
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--secondary-text-color);
+  }
 
   /* --- controls ---------------------------------------------------------- */
   .label {
@@ -698,7 +709,11 @@ const CARD_STYLES = `
     cursor: pointer;
   }
   button.btn:hover:not(:disabled) { filter: brightness(1.12); }
-  button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  button.btn:disabled[data-tone] {
+    color: var(--disabled-text-color, #bdbdbd);
+    background: var(--secondary-background-color);
+  }
   button.btn svg { width: 18px; height: 18px; fill: currentColor; }
   button.btn[data-tone="primary"] {
     color: var(--text-primary-color, #fff);
@@ -710,20 +725,26 @@ const CARD_STYLES = `
   }
   button.btn[data-on="true"] {
     color: var(--text-primary-color, #fff);
-    background: var(--state-icon-active-color, var(--primary-color));
+    background: var(--primary-color, #03a9f4);
   }
 
   .control {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex: 1 1 200px;
-    min-width: 170px;
+    flex: 1 1 100%;
+    min-width: 0;
   }
   .control > .label { flex: 0 0 auto; min-width: 58px; }
-  select, input[type="number"] {
+  select {
     flex: 1 1 auto;
     min-width: 0;
+  }
+  input[type="number"] {
+    flex: 0 0 auto;
+    width: 88px;
+  }
+  select, input[type="number"] {
     padding: 6px 8px;
     border: 1px solid var(--divider-color, rgba(127, 127, 127, 0.4));
     border-radius: 8px;
@@ -743,6 +764,59 @@ const CARD_STYLES = `
   }
   .notice strong { color: var(--primary-text-color); }
   hr.sep { border: none; border-top: 1px solid var(--divider-color, rgba(127,127,127,0.2)); margin: 0; }
+
+  /* --- camera toggle ------------------------------------------------------ */
+  .media-actions { position: absolute; right: 8px; bottom: 8px; }
+  .media-bar { display: flex; justify-content: center; padding: 10px 16px 0; }
+  button.btn.btn--sm {
+    padding: 4px 10px;
+    font-size: 0.74rem;
+    border-radius: 12px;
+    background: var(--secondary-background-color);
+  }
+  .media-actions button.btn.btn--sm {
+    color: #fff;
+    background: rgba(0, 0, 0, 0.55);
+  }
+
+  /* --- confirmation dialog ------------------------------------------------ */
+  .dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.45);
+  }
+  .dialog-backdrop[hidden] { display: none; }
+  .dialog {
+    width: 100%;
+    max-width: 320px;
+    padding: 18px;
+    border-radius: 14px;
+    background: var(--ha-card-background, var(--card-background-color, #fff));
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+  .dialog-title {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: var(--primary-text-color);
+  }
+  .dialog-body {
+    margin: 0 0 16px;
+    font-size: 0.86rem;
+    line-height: 1.45;
+    color: var(--secondary-text-color);
+  }
+  .dialog-body[hidden] { display: none; }
+  .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .dialog-actions button.btn:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
 
   @media (max-width: 420px) {
     .grid { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
@@ -772,9 +846,91 @@ const DEFAULTS = {
   show_details: true,
   show_filament: true,
   show_controls: true,
+  // The camera is opt-in: a visible chamber camera streams continuously for as
+  // long as the card is on screen, so it is never shown unless asked for.
+  show_camera: "never",
   camera_live: true,
-  camera_always: false,
+  confirm_actions: true,
 };
+
+const CAMERA_MODES = ["never", "printing", "always"];
+
+/**
+ * Actions confirmed by default: everything that can wreck a running print.
+ * Fans, the chamber light and the temperature/speed inputs are left alone
+ * because they are either harmless or already deliberate, but any key may be
+ * added via `confirm_actions`.
+ */
+const DEFAULT_CONFIRM_KEYS = [
+  "pause_print",
+  "resume_print",
+  "stop_print",
+  "home_all",
+  "home_x",
+  "home_y",
+  "home_z",
+];
+
+const CONFIRM_PROMPTS = {
+  stop_print: {
+    title: "Stop the print?",
+    body: "The current print will be cancelled. This cannot be undone.",
+    confirm: "Stop print",
+    tone: "danger",
+  },
+  pause_print: {
+    title: "Pause the print?",
+    body: "The printer will pause at the current layer.",
+    confirm: "Pause",
+  },
+  resume_print: {
+    title: "Resume the print?",
+    body: "The printer will carry on from where it paused.",
+    confirm: "Resume",
+  },
+  home_all: {
+    title: "Home all axes?",
+    body: "Homing moves the toolhead. Running it during a print will ruin the print.",
+    confirm: "Home all",
+    tone: "danger",
+  },
+  second_light: { title: "Toggle the chamber light?", body: "", confirm: "Toggle" },
+  print_speed: {
+    title: "Change the print speed?",
+    body: "The new speed preset is applied immediately.",
+    confirm: "Change speed",
+  },
+  target_nozzle_temp: {
+    title: "Change the nozzle target?",
+    body: "The printer will start heating or cooling to the new target straight away.",
+    confirm: "Set target",
+  },
+  target_bed_temp: {
+    title: "Change the bed target?",
+    body: "The printer will start heating or cooling to the new target straight away.",
+    confirm: "Set target",
+  },
+};
+
+for (const axis of ["x", "y", "z"]) {
+  CONFIRM_PROMPTS["home_" + axis] = {
+    title: "Home the " + axis.toUpperCase() + " axis?",
+    body: "Homing moves the toolhead. Running it during a print will ruin the print.",
+    confirm: "Home " + axis.toUpperCase(),
+    tone: "danger",
+  };
+}
+
+/** Prompt copy for a key, with a usable fallback for anything not listed. */
+function confirmPrompt(key) {
+  return (
+    CONFIRM_PROMPTS[key] || {
+      title: "Confirm " + prettify(key).toLowerCase() + "?",
+      body: "This changes a setting on the printer.",
+      confirm: "Confirm",
+    }
+  );
+}
 
 class ElegooPrinterCard extends HTMLElement {
   constructor() {
@@ -790,6 +946,10 @@ class ElegooPrinterCard extends HTMLElement {
     this._mediaKey = null;
     this._mediaEl = null;
     this._mediaFailed = Object.create(null);
+    this._cameraRevealed = false;
+    this._confirmKeys = new Set(DEFAULT_CONFIRM_KEYS);
+    this._dialog = null;
+    this._dialogResolve = null;
     this._built = false;
   }
 
@@ -807,10 +967,45 @@ class ElegooPrinterCard extends HTMLElement {
         );
       }
     }
-    this._config = { ...DEFAULTS, ...config };
+    const merged = { ...DEFAULTS, ...config };
+
+    // `camera_always` was the pre-release spelling of `show_camera: always`.
+    if (config.camera_always === true && config.show_camera === undefined) {
+      merged.show_camera = "always";
+    }
+    // Booleans are accepted as a convenience for the three-way camera mode.
+    if (merged.show_camera === true) merged.show_camera = "always";
+    if (merged.show_camera === false) merged.show_camera = "never";
+    if (!CAMERA_MODES.includes(merged.show_camera)) {
+      throw new Error(
+        "`show_camera` must be one of " + CAMERA_MODES.join(", ") + " (or true/false)"
+      );
+    }
+
+    if (
+      typeof merged.confirm_actions !== "boolean" &&
+      !Array.isArray(merged.confirm_actions)
+    ) {
+      throw new Error(
+        "`confirm_actions` must be true, false, or a list of action keys such as " +
+          "[stop_print, pause_print]"
+      );
+    }
+
+    this._config = merged;
+    this._confirmKeys =
+      merged.confirm_actions === false
+        ? null
+        : new Set(
+            Array.isArray(merged.confirm_actions)
+              ? merged.confirm_actions
+              : DEFAULT_CONFIRM_KEYS
+          );
     this._fingerprint = null;
     this._resolutionKey = null;
     this._mediaFailed = Object.create(null);
+    this._cameraRevealed = false;
+    this._releaseMedia();
     if (this._hass) this._update();
   }
 
@@ -930,7 +1125,7 @@ class ElegooPrinterCard extends HTMLElement {
 
   _fingerprintOf(deviceId) {
     const hass = this._hass;
-    const parts = [deviceId];
+    const parts = [deviceId, this._config.show_camera, String(this._cameraRevealed)];
     const device = (hass.devices || {})[deviceId];
     if (device) parts.push((device.name_by_user || device.name || "") + "|" + (device.model || ""));
     for (const key of Object.keys(this._entities).sort()) {
@@ -957,8 +1152,7 @@ class ElegooPrinterCard extends HTMLElement {
   }
 
   _renderNotice(html) {
-    this._mediaKey = null;
-    this._mediaEl = null;
+    this._releaseMedia();
     this._root.innerHTML = '<div class="notice">' + html + "</div>";
   }
 
@@ -995,11 +1189,18 @@ class ElegooPrinterCard extends HTMLElement {
 
   _render(deviceId) {
     const status = deriveStatus(this._hass, this._entities);
-    const media = this._config.show_media ? this._mediaTarget(status) : null;
+    const media = this._config.show_media
+      ? this._mediaState(status)
+      : { target: null, cameraToggle: null };
+    if (!media.target) this._releaseMedia();
 
     const sections = [
       this._renderHeader(deviceId, status),
-      media ? '<div class="media" id="media"></div>' : "",
+      media.target
+        ? '<div class="media" id="media"></div>'
+        : media.cameraToggle === "show"
+          ? '<div class="media-bar">' + this._cameraToggleButton("show") + "</div>"
+          : "",
     ];
 
     const body = [];
@@ -1012,14 +1213,20 @@ class ElegooPrinterCard extends HTMLElement {
     if (filled.length) sections.push('<div class="content">' + filled.join("") + "</div>");
 
     this._root.innerHTML = sections.filter(Boolean).join("");
-    if (media) this._updateMedia(media);
+    if (media.target) this._updateMedia(media.target, media.cameraToggle);
   }
 
   _renderHeader(deviceId, status) {
     const device = (this._hass.devices || {})[deviceId] || {};
     const name =
       this._config.name || device.name_by_user || device.name || "Elegoo Printer";
-    const subtitle = this._config.name ? device.name_by_user || device.name || "" : device.model || "";
+    // Many printers are named after their model, which would just repeat the
+    // title, so the subtitle is dropped when it says nothing new.
+    const candidate = this._config.name
+      ? device.name_by_user || device.name || ""
+      : device.model || "";
+    const subtitle =
+      candidate && candidate.toLowerCase() !== name.toLowerCase() ? candidate : "";
 
     let connectivity = "";
     const sdcp = this._st("sdcp_status");
@@ -1054,7 +1261,7 @@ class ElegooPrinterCard extends HTMLElement {
 
   /* --- media ------------------------------------------------------------- */
 
-  _mediaTarget(status) {
+  _mediaState(status) {
     const camera = this._st("chamber_camera");
     const cover = this._st("cover_image");
     const cameraPicture =
@@ -1083,26 +1290,72 @@ class ElegooPrinterCard extends HTMLElement {
         }
       : null;
 
-    const preferCamera = status.printing || this._config.camera_always;
-    const ordered = preferCamera
-      ? [cameraTarget, coverTarget]
-      : [coverTarget, cameraTarget];
+    const mode = this._config.show_camera;
+    const autoCamera = mode === "always" || (mode === "printing" && status.printing);
+    // With the camera off, it is left out of the candidate list entirely, so no
+    // <img> is ever created for it and nothing streams.
+    const wantCamera = !!cameraTarget && (autoCamera || this._cameraRevealed);
+    const ordered = wantCamera ? [cameraTarget, coverTarget] : [coverTarget];
+
     // Failures are remembered per source URL rather than per entity: the proxy
     // token rotates periodically, so a camera that comes back is retried on the
     // next token instead of staying hidden until the dashboard is reloaded.
-    for (const target of ordered) {
-      if (target && !this._mediaFailed[target.src]) return target;
+    let target = null;
+    for (const candidate of ordered) {
+      if (candidate && !this._mediaFailed[candidate.src]) {
+        target = candidate;
+        break;
+      }
     }
-    return null;
+
+    return {
+      target,
+      // Only offer the manual toggle when the camera is not already being
+      // shown automatically.
+      cameraToggle: cameraTarget && !autoCamera
+        ? target && target.kind === "camera"
+          ? "hide"
+          : "show"
+        : null,
+    };
   }
 
-  _updateMedia(target) {
+  _cameraToggleButton(mode) {
+    return (
+      '<button class="btn btn--sm" type="button" data-action="camera-toggle">' +
+      (mode === "show" ? "Show camera" : "Hide camera") +
+      "</button>"
+    );
+  }
+
+  /**
+   * Drop the media element and clear its src.
+   *
+   * Removing a streaming <img> from the DOM does not reliably close the
+   * underlying MJPEG connection, so the src is cleared explicitly. That is the
+   * whole point of the camera being opt-in.
+   */
+  _releaseMedia() {
+    if (this._mediaEl) {
+      this._mediaEl.removeAttribute("src");
+      if (typeof this._mediaEl.remove === "function") this._mediaEl.remove();
+    }
+    this._mediaEl = null;
+    this._mediaKey = null;
+  }
+
+  _updateMedia(target, cameraToggle) {
     const slot = this.shadowRoot.getElementById("media");
     if (!slot) return;
-    slot.innerHTML = '<span class="media-label">' + esc(target.label) + "</span>";
+    slot.innerHTML =
+      '<span class="media-label">' + esc(target.label) + "</span>" +
+      (cameraToggle
+        ? '<div class="media-actions">' + this._cameraToggleButton(cameraToggle) + "</div>"
+        : "");
 
     const key = target.kind + "|" + target.entity + "|" + target.src;
     if (this._mediaKey !== key || !this._mediaEl) {
+      this._releaseMedia();
       const img = document.createElement("img");
       img.alt = target.label;
       img.setAttribute("data-action", "more-info");
@@ -1187,14 +1440,21 @@ class ElegooPrinterCard extends HTMLElement {
   /** Temperature cell, appending "→ target" only when the target exists. */
   _tempCell(label, sensorKey, targetKey) {
     if (!this._has(sensorKey)) return "";
-    let value = esc(this._display(sensorKey));
+    const value = esc(this._display(sensorKey));
+    let target = "";
     if (targetKey && this._has(targetKey)) {
-      const target = numState(this._st(targetKey));
-      if (target !== null && target > 0) {
-        value += ' <span class="target">&rarr; ' + esc(Math.round(target)) + "&deg;</span>";
+      const wanted = numState(this._st(targetKey));
+      if (wanted !== null && wanted > 0) {
+        const unit = (this._st(sensorKey).attributes || {}).unit_of_measurement || "";
+        // A separate line, so a long reading plus target never wraps mid-value.
+        target =
+          '<span class="cell-target">&rarr; ' +
+          esc(Math.round(wanted)) +
+          (unit ? " " + esc(unit) : "&deg;") +
+          "</span>";
       }
     }
-    return this._cell(label, value, this._entities[sensorKey]);
+    return this._cell(label, value + target, this._entities[sensorKey]);
   }
 
   _renderDetails() {
@@ -1293,7 +1553,8 @@ class ElegooPrinterCard extends HTMLElement {
               esc(this._entities.active_filament_color) + '"'
             : "") +
           '><span class="swatch" style="--swatch-color:' +
-          esc(activeColor || "transparent") + '"></span>' + esc(trayLabel) +
+          esc(activeColor || "transparent") +
+          '"></span><span class="chip-lead">Loaded</span> ' + esc(trayLabel) +
           (activeSlot !== null && slotName ? ' <span class="chip-sub">A' + activeSlot + "</span>" : "") +
           "</span></div>"
       );
@@ -1340,7 +1601,8 @@ class ElegooPrinterCard extends HTMLElement {
       '<button class="btn" type="button"' +
       (tone ? ' data-tone="' + tone + '"' : "") +
       (disabled ? " disabled" : "") +
-      ' data-action="press" data-entity="' + esc(this._entities[key]) + '">' +
+      ' data-action="press" data-key="' + esc(key) + '"' +
+      ' data-entity="' + esc(this._entities[key]) + '">' +
       svgIcon(icon) + "<span>" + esc(label) + "</span></button>"
     );
   }
@@ -1370,7 +1632,8 @@ class ElegooPrinterCard extends HTMLElement {
     if (light && light.state !== "unavailable") {
       lightRow.push(
         '<button class="btn" type="button" data-on="' + (light.state === "on") + '"' +
-        ' data-action="light-toggle" data-entity="' + esc(this._entities.second_light) + '">' +
+        ' data-action="light-toggle" data-key="second_light"' +
+        ' data-entity="' + esc(this._entities.second_light) + '">' +
         "<span>Chamber light</span></button>"
       );
     }
@@ -1395,11 +1658,13 @@ class ElegooPrinterCard extends HTMLElement {
       fanRows.push(
         '<div class="control">' +
         '<button class="btn" type="button" data-on="' + on + '"' +
-        ' data-action="fan-toggle" data-entity="' + entityId + '"><span>' + esc(label) + "</span></button>" +
+        ' data-action="fan-toggle" data-key="' + esc(key) + '"' +
+        ' data-entity="' + entityId + '"><span>' + esc(label) + "</span></button>" +
         (supportsSpeed
           ? '<input type="range" min="0" max="100" step="1" value="' + percentage + '"' +
             ' aria-label="' + esc(label + " fan speed") + '"' +
-            ' data-action="fan-percentage" data-entity="' + entityId + '">' +
+            ' data-action="fan-percentage" data-key="' + esc(key) + '"' +
+            ' data-entity="' + entityId + '">' +
             '<span class="pct">' + percentage + "%</span>"
           : "") +
         "</div>"
@@ -1424,7 +1689,7 @@ class ElegooPrinterCard extends HTMLElement {
           .join("");
         inputs.push(
           '<div class="control"><span class="label">Speed</span>' +
-          '<select data-action="select-option" data-entity="' +
+          '<select data-action="select-option" data-key="print_speed" data-entity="' +
           esc(this._entities.print_speed) + '">' + opts + "</select></div>"
         );
       }
@@ -1437,7 +1702,8 @@ class ElegooPrinterCard extends HTMLElement {
       const value = numState(target);
       inputs.push(
         '<div class="control"><span class="label">' + esc(label) + "</span>" +
-        '<input type="number" data-action="set-number" data-entity="' + esc(this._entities[key]) + '"' +
+        '<input type="number" data-action="set-number" data-key="' + esc(key) + '"' +
+        ' data-entity="' + esc(this._entities[key]) + '"' +
         (a.min === undefined ? "" : ' min="' + esc(a.min) + '"') +
         (a.max === undefined ? "" : ' max="' + esc(a.max) + '"') +
         ' step="' + esc(a.step === undefined ? 1 : a.step) + '"' +
@@ -1475,24 +1741,117 @@ class ElegooPrinterCard extends HTMLElement {
     );
   }
 
+  /* --- confirmation ---------------------------------------------------- */
+
+  _ensureDialog() {
+    if (this._dialog) return;
+    const backdrop = document.createElement("div");
+    backdrop.className = "dialog-backdrop";
+    backdrop.setAttribute("hidden", "");
+    backdrop.innerHTML =
+      '<div class="dialog" role="alertdialog" aria-modal="true"' +
+      ' aria-labelledby="dialog-title" aria-describedby="dialog-body">' +
+      '<h2 class="dialog-title" id="dialog-title"></h2>' +
+      '<p class="dialog-body" id="dialog-body"></p>' +
+      '<div class="dialog-actions">' +
+      '<button class="btn" type="button" data-dialog="cancel">Cancel</button>' +
+      '<button class="btn" type="button" data-dialog="confirm"></button>' +
+      "</div></div>";
+
+    backdrop.addEventListener("click", (ev) => {
+      const button = ev.target.closest ? ev.target.closest("[data-dialog]") : null;
+      if (button) {
+        this._closeDialog(button.getAttribute("data-dialog") === "confirm");
+        return;
+      }
+      // A click on the backdrop itself, outside the dialog, cancels.
+      if (ev.target === backdrop) this._closeDialog(false);
+    });
+    backdrop.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") {
+        ev.stopPropagation();
+        this._closeDialog(false);
+      }
+    });
+
+    this.shadowRoot.appendChild(backdrop);
+    this._dialog = backdrop;
+  }
+
+  _closeDialog(result) {
+    if (!this._dialog) return;
+    this._dialog.setAttribute("hidden", "");
+    const resolve = this._dialogResolve;
+    this._dialogResolve = null;
+    if (resolve) resolve(result);
+  }
+
+  /** Resolves true when the action may proceed. */
+  _confirm(key) {
+    if (!key || !this._confirmKeys || !this._confirmKeys.has(key)) {
+      return Promise.resolve(true);
+    }
+    const prompt = confirmPrompt(key);
+    return new Promise((resolve) => {
+      // A second prompt while one is open cancels the first rather than
+      // orphaning its promise.
+      this._closeDialog(false);
+      this._ensureDialog();
+      const dialog = this._dialog;
+      dialog.querySelector(".dialog-title").textContent = prompt.title;
+      const body = dialog.querySelector(".dialog-body");
+      body.textContent = prompt.body || "";
+      body.hidden = !prompt.body;
+      const confirmButton = dialog.querySelector('[data-dialog="confirm"]');
+      confirmButton.textContent = prompt.confirm;
+      confirmButton.setAttribute("data-tone", prompt.tone === "danger" ? "danger" : "primary");
+      this._dialogResolve = resolve;
+      dialog.removeAttribute("hidden");
+      // Focus Cancel, so a stray Enter or Space dismisses rather than confirms.
+      const cancelButton = dialog.querySelector('[data-dialog="cancel"]');
+      if (typeof cancelButton.focus === "function") cancelButton.focus();
+    });
+  }
+
+  _confirmThen(key, run, onCancel) {
+    this._confirm(key).then((confirmed) => {
+      if (confirmed) run();
+      else if (onCancel) onCancel();
+    });
+  }
+
+  /* --- events ------------------------------------------------------------ */
+
   _onClick(ev) {
     const target = ev.composedPath().find(
       (node) => node instanceof Element && node.hasAttribute && node.hasAttribute("data-action")
     );
     if (!target) return;
     const action = target.getAttribute("data-action");
+
+    if (action === "camera-toggle") {
+      this._cameraRevealed = !this._cameraRevealed;
+      if (!this._cameraRevealed) this._releaseMedia();
+      this._fingerprint = null;
+      this._update();
+      return;
+    }
+
     const entityId = target.getAttribute("data-entity");
     if (!entityId) return;
+    const key = target.getAttribute("data-key");
 
     switch (action) {
       case "press":
-        if (!target.disabled) this._call("button", "press", { entity_id: entityId });
+        if (!target.disabled) {
+          this._confirmThen(key, () => this._call("button", "press", { entity_id: entityId }));
+        }
         break;
       case "light-toggle":
-        this._call("light", "toggle", { entity_id: entityId });
+        this._confirmThen(key, () => this._call("light", "toggle", { entity_id: entityId }));
         break;
       case "fan-toggle":
-        this._call("fan", "toggle", { entity_id: entityId });
+        this._confirmThen(key, () => this._call("fan", "toggle", { entity_id: entityId }));
         break;
       case "more-info":
         this._moreInfo(entityId);
@@ -1508,22 +1867,41 @@ class ElegooPrinterCard extends HTMLElement {
     const action = target.getAttribute("data-action");
     const entityId = target.getAttribute("data-entity");
     if (!entityId) return;
+    const key = target.getAttribute("data-key");
+    // Cancelling has to put the widget back: re-rendering restores it from the
+    // entity's actual state.
+    const revert = () => {
+      this._fingerprint = null;
+      this._update();
+    };
 
     switch (action) {
-      case "select-option":
-        this._call("select", "select_option", { entity_id: entityId, option: target.value });
+      case "select-option": {
+        const option = target.value;
+        this._confirmThen(
+          key,
+          () => this._call("select", "select_option", { entity_id: entityId, option }),
+          revert
+        );
         break;
-      case "fan-percentage":
-        this._call("fan", "set_percentage", {
-          entity_id: entityId,
-          percentage: Number(target.value),
-        });
+      }
+      case "fan-percentage": {
+        const percentage = Number(target.value);
+        this._confirmThen(
+          key,
+          () => this._call("fan", "set_percentage", { entity_id: entityId, percentage }),
+          revert
+        );
         break;
+      }
       case "set-number": {
         const value = Number(target.value);
-        if (Number.isFinite(value)) {
-          this._call("number", "set_value", { entity_id: entityId, value });
-        }
+        if (!Number.isFinite(value)) break;
+        this._confirmThen(
+          key,
+          () => this._call("number", "set_value", { entity_id: entityId, value }),
+          revert
+        );
         break;
       }
       default:
@@ -1548,10 +1926,23 @@ const EDITOR_SCHEMA = [
       { name: "show_details", selector: { boolean: {} } },
       { name: "show_filament", selector: { boolean: {} } },
       { name: "show_controls", selector: { boolean: {} } },
-      { name: "camera_live", selector: { boolean: {} } },
-      { name: "camera_always", selector: { boolean: {} } },
+      { name: "confirm_actions", selector: { boolean: {} } },
     ],
   },
+  {
+    name: "show_camera",
+    selector: {
+      select: {
+        mode: "dropdown",
+        options: [
+          { value: "never", label: "Only when I press Show camera" },
+          { value: "printing", label: "Automatically while printing" },
+          { value: "always", label: "Always" },
+        ],
+      },
+    },
+  },
+  { name: "camera_live", selector: { boolean: {} } },
 ];
 
 const EDITOR_LABELS = {
@@ -1562,8 +1953,9 @@ const EDITOR_LABELS = {
   show_details: "Show details",
   show_filament: "Show filament",
   show_controls: "Show controls",
-  camera_live: "Live camera stream",
-  camera_always: "Always prefer camera",
+  confirm_actions: "Confirm print actions",
+  show_camera: "Chamber camera",
+  camera_live: "Live stream (instead of periodic snapshots)",
 };
 
 class ElegooPrinterCardEditor extends HTMLElement {
@@ -1637,12 +2029,20 @@ class ElegooPrinterCardEditor extends HTMLElement {
       this.shadowRoot.appendChild(this._form);
     }
     this._form.hass = this._hass;
+    // A per-action list is YAML-only; show it as "on" and leave it untouched.
+    const data = { ...DEFAULTS, ...this._config };
+    if (Array.isArray(data.confirm_actions)) data.confirm_actions = true;
     this._form.schema = EDITOR_SCHEMA;
-    this._form.data = { ...DEFAULTS, ...this._config };
+    this._form.data = data;
   }
 
   _valueChanged(value) {
     const config = { ...this._config, ...value };
+    // Never flatten a YAML-authored confirm_actions list into a bare `true`.
+    if (Array.isArray(this._config.confirm_actions) && value.confirm_actions === true) {
+      config.confirm_actions = this._config.confirm_actions;
+    }
+    delete config.camera_always;
     if (!config.name) delete config.name;
     // Keep the YAML tidy: drop toggles that match the default.
     for (const key of Object.keys(DEFAULTS)) {

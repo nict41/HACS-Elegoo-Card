@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest an addition or improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like the card to do?
+    validations:
+      required: true
+
+  - type: input
+    id: entities
+    attributes:
+      label: Which integration entities would it use?
+      description: >
+        If this needs data the card does not show yet, naming the
+        `elegoo_printer` entity keys helps a lot.
+      placeholder: "z_offset, total_filament_used"

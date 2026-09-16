@@ -1,0 +1,78 @@
+name: Bug report
+description: Something in the card does not work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Before filing: if an entity is **missing or unavailable**, that is
+        usually the `elegoo_printer` integration rather than this card. The card
+        deliberately hides rows and controls whose entity does not exist.
+
+  - type: input
+    id: card-version
+    attributes:
+      label: Card version
+      description: Shown in your browser console on load, e.g. `ELEGOO-PRINTER-CARD 1.1.0`.
+      placeholder: "1.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: integration-version
+    attributes:
+      label: elegoo_printer integration version
+      placeholder: "2.12.2"
+    validations:
+      required: true
+
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant version
+      placeholder: "2026.9.0"
+    validations:
+      required: true
+
+  - type: input
+    id: printer
+    attributes:
+      label: Printer model
+      placeholder: "Centauri Carbon 2 / Mars 5 Ultra / ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Card configuration
+      description: The card's YAML. Remove anything you consider private.
+      render: yaml
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Browser console errors
+      description: Any errors logged when the card loads or misbehaves.
+      render: text
+
+  - type: checkboxes
+    id: admin
+    attributes:
+      label: Account type
+      description: >
+        The card reads entity `unique_id`s to identify entities, which requires
+        an admin account. Non-admins fall back to matching on entity IDs, so this
+        matters for lookup problems.
+      options:
+        - label: I am signed in as an administrator

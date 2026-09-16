@@ -1,15 +1,31 @@
-# Elegoo Printer Card
+<p align="center">
+  <img src="https://raw.githubusercontent.com/nict41/HACS-Elegoo-Card/main/assets/banner.png" alt="Elegoo Printer Card" width="820">
+</p>
 
-[![hacs][hacs-badge]][hacs-url]
-[![release][release-badge]][release-url]
+<p align="center">
+  <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS custom repository"></a>
+  <a href="https://github.com/nict41/HACS-Elegoo-Card/releases"><img src="https://img.shields.io/github/v/release/nict41/HACS-Elegoo-Card" alt="Latest release"></a>
+  <a href="https://github.com/nict41/HACS-Elegoo-Card/actions/workflows/validate.yml"><img src="https://github.com/nict41/HACS-Elegoo-Card/actions/workflows/validate.yml/badge.svg" alt="Validate"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/nict41/HACS-Elegoo-Card" alt="MIT licence"></a>
+</p>
 
 A Lovelace card for 3D printers exposed by the
-[**elegoo_printer**][integration] Home Assistant integration — status, live
-camera, print progress, filament slots and controls in a single card.
+[**elegoo_printer**][integration] Home Assistant integration — status, camera,
+print progress, filament slots and controls in a single card.
 
 > This repository is a **frontend plugin only**. It does not contain, bundle or
 > replace the integration. Install [danielcherubini/elegoo-homeassistant][integration]
 > first; this card just renders the entities that integration creates.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/nict41/HACS-Elegoo-Card/main/docs/images/card-printing-dark.png" alt="The card while printing, dark theme" width="340">
+  <img src="https://raw.githubusercontent.com/nict41/HACS-Elegoo-Card/main/docs/images/card-idle-light.png" alt="The card while idle, light theme" width="340">
+</p>
+
+<p align="center">
+  <em>Printing (dark theme) and idle (light theme). Sample data; the media area
+  shows placeholder artwork rather than a real camera feed.</em>
+</p>
 
 ---
 
@@ -17,8 +33,10 @@ camera, print progress, filament slots and controls in a single card.
 
 - **Status header** — printer name plus a colour-coded badge (idle / printing /
   paused / error / complete) and a connectivity dot driven by `sdcp_status`.
-- **Media** — the job's cover image while idle, the chamber camera's live MJPEG
-  feed while printing. Hidden entirely when the printer has neither.
+- **Media** — the job's cover image, plus the chamber camera on demand. The
+  camera is **off by default** so nothing streams unless you ask for it; a
+  *Show camera* button reveals it, and hiding it tears the stream back down.
+  The whole area disappears if the printer has neither entity.
 - **Progress** — progress bar, filename, layer counter, `Xh Ym remaining`,
   start time and ETA.
 - **Details** — nozzle / bed / enclosure / UV-LED / vat temperatures with their
@@ -28,6 +46,9 @@ camera, print progress, filament slots and controls in a single card.
 - **Controls** — pause / resume / stop, homing, speed preset dropdown, fan
   toggles and speed sliders, chamber light, and nozzle/bed target temperature
   inputs.
+- **Confirmation before anything destructive** — pause, resume, stop and homing
+  ask first, so a misplaced tap cannot ruin a 14-hour print. Configurable, and
+  any other control can be added to the list.
 - **Works on any printer variant.** Resin and FDM, V1/MQTT, V3/SDCP and CC2 all
   expose different subsets of entities. Every row and control only renders if
   its entity actually exists and is available — nothing is assumed.
@@ -43,7 +64,7 @@ The card is not yet in the HACS default store, so add it as a custom repository:
 
 1. Open **HACS**.
 2. Menu (⋮ top-right) → **Custom repositories**.
-3. Repository: `https://github.com/nict41/hacs-elegoo-card` — Type: **Dashboard**.
+3. Repository: `https://github.com/nict41/HACS-Elegoo-Card` — Type: **Dashboard**.
 4. **Add**, then find **Elegoo Printer Card** in the list and **Download**.
 5. Reload your browser (Ctrl/Cmd + Shift + R).
 
@@ -86,9 +107,44 @@ You can find the `device_id` in the URL of the device's page under
 | `show_details`  | boolean | `true`              | Show the temperature / speed / fan grid.                                 |
 | `show_filament` | boolean | `true`              | Show the filament and Canvas slot chips.                                 |
 | `show_controls` | boolean | `true`              | Show the controls section.                                               |
-| `camera_live`   | boolean | `true`              | Use the live MJPEG stream. Set `false` for a lighter periodic snapshot.   |
-| `camera_always` | boolean | `false`             | Prefer the camera over the cover image even when not printing.            |
+| `show_camera`   | string  | `never`             | When to show the chamber camera: `never`, `printing` or `always`. See below. |
+| `camera_live`   | boolean | `true`              | Use the live MJPEG stream. Set `false` for lighter periodic snapshots.    |
+| `confirm_actions` | boolean or list | `true`    | Confirm before print-affecting actions. See below.                       |
 | `entities`      | map     | –                   | Per-entity overrides — see below.                                        |
+
+### The camera
+
+A visible camera streams for as long as the card is on screen, which is a real
+cost on a dashboard you leave open. So it is off by default:
+
+```yaml
+show_camera: never      # default — a "Show camera" button reveals it on demand
+show_camera: printing   # stream automatically while printing, cover image otherwise
+show_camera: always     # always prefer the camera over the cover image
+```
+
+With `never`, pressing *Show camera* starts the stream and *Hide camera* stops
+it — the card clears the image source, so the connection really does close
+rather than carrying on in the background.
+
+`camera_live: false` swaps the MJPEG stream for periodic still snapshots, which
+is lighter again.
+
+### Confirmations
+
+By default the card asks before anything that could wreck a running print:
+`pause_print`, `resume_print`, `stop_print` and the four homing buttons. Cancel
+is focused when the dialog opens, so a stray Enter dismisses it.
+
+```yaml
+confirm_actions: false                        # never ask
+confirm_actions: [stop_print]                 # only ask before stopping
+confirm_actions: [stop_print, target_nozzle_temp, print_speed]
+```
+
+Any key from the table below can be listed, including the fans, the chamber
+light and the speed and temperature inputs. Cancelling an input puts it back to
+the printer's actual value.
 
 ### Fully specified example
 
@@ -96,7 +152,8 @@ You can find the `device_id` in the URL of the device's page under
 type: custom:elegoo-printer-card
 device_id: 1f9a0c3b7d2e4f5a6b8c9d0e1f2a3b4c
 name: Workshop Centauri
-camera_always: true
+show_camera: printing
+confirm_actions: [stop_print]
 show_filament: false
 ```
 
@@ -163,9 +220,12 @@ by the integration itself; the card disables them rather than guessing when they
 apply. Resin printers have no nozzle/bed, V1/MQTT printers have no homing
 buttons, and the Canvas slots only exist on CC2 printers with an AMS.
 
+**There is no camera.** That is the default — set `show_camera` to `printing`
+or `always`, or press *Show camera* on the card.
+
 **The camera area disappeared.** The card hides the media area if the image
 fails to load, so an offline camera does not leave a broken image behind. It
-comes back on the next successful load.
+retries when the proxy token next rotates.
 
 **Something resolved to the wrong entity.** Pin it with an `entities` override
 and please [open an issue][issues] so the lookup table can be fixed.
@@ -185,21 +245,36 @@ across idle / printing / paused / error / offline / resin / all-unavailable
 scenarios and asserts the service calls each control fires.
 
 If a future integration release renames or adds entity keys, the one place to
-update is `KEY_DEFS` at the top of `dist/elegoo-printer-card.js`.
+update is `KEY_DEFS` at the top of `dist/elegoo-printer-card.js`. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
+The README screenshots are generated from the real card rather than mocked up:
+
+```bash
+npm install -D playwright
+npm run screenshots
+```
+
+## Screenshots
+
+| Printing (dark) | Idle (light) | Confirmation |
+| --- | --- | --- |
+| <img src="https://raw.githubusercontent.com/nict41/HACS-Elegoo-Card/main/docs/images/card-printing-dark.png" alt="Printing, dark theme" width="230"> | <img src="https://raw.githubusercontent.com/nict41/HACS-Elegoo-Card/main/docs/images/card-idle-light.png" alt="Idle, light theme" width="230"> | <img src="https://raw.githubusercontent.com/nict41/HACS-Elegoo-Card/main/docs/images/card-confirm-dark.png" alt="Stop confirmation dialog" width="230"> |
 
 ## Credits
 
 - [danielcherubini/elegoo-homeassistant][integration] — the integration that
-  makes all of this possible. This card is an independent project and is not
-  affiliated with it or with Elegoo.
+  makes all of this possible.
+
+This card is an independent community project. It is not affiliated with,
+endorsed by, or supported by Elegoo or by the integration's authors. "Elegoo" is
+a trademark of its owner and is used here only to say what the card works with.
+The logo and artwork in this repository are original to this project.
 
 ## License
 
 [MIT](LICENSE)
 
 [integration]: https://github.com/danielcherubini/elegoo-homeassistant
-[issues]: https://github.com/nict41/hacs-elegoo-card/issues
-[hacs-badge]: https://img.shields.io/badge/HACS-Custom-41BDF5.svg
-[hacs-url]: https://github.com/hacs/integration
-[release-badge]: https://img.shields.io/github/v/release/nict41/hacs-elegoo-card
-[release-url]: https://github.com/nict41/hacs-elegoo-card/releases
+[issues]: https://github.com/nict41/HACS-Elegoo-Card/issues
+[release-url]: https://github.com/nict41/HACS-Elegoo-Card/releases
