@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-16
+
+### Fixed
+
+- The cover image kept showing the previous print. Home Assistant builds an
+  image entity's `entity_picture` as `/api/image_proxy/<id>?token=<t>` and
+  rotates that token on a fixed 5-minute timer, so the URL does not change when
+  a new thumbnail arrives — only the entity's state (`image_last_updated`) does.
+  The browser therefore served the stale cached image. Media URLs are now keyed
+  on that state.
+- Pressing *Show camera* appeared to do nothing when the stream could not be
+  opened: the card quietly fell back to the cover image. An explicitly
+  requested camera that fails now reports the failure, and says so when the
+  printer is already at its simultaneous video-stream limit.
+
+### Added
+
+- If the MJPEG stream cannot be opened, the card falls back to a single still
+  frame before giving up on the camera — the printer caps simultaneous stream
+  viewers, so a still can succeed where the stream cannot.
+- A *Try again* button on the camera error, and `video_stream_connected` /
+  `video_stream_max` added to the recognised entity keys.
+
 ## [1.1.0] - 2026-09-16
 
 First tagged release.
@@ -30,5 +53,6 @@ First tagged release.
 - Test suite covering entity resolution and jsdom rendering, and a Playwright
   tool that regenerates the README screenshots from the shipped card.
 
-[Unreleased]: https://github.com/nict41/HACS-Elegoo-Card/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/nict41/HACS-Elegoo-Card/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/nict41/HACS-Elegoo-Card/releases/tag/v1.1.1
 [1.1.0]: https://github.com/nict41/HACS-Elegoo-Card/releases/tag/v1.1.0

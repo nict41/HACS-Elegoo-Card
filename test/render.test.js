@@ -288,10 +288,19 @@ console.log("\n--- degradation ---");
   let img = card.shadowRoot.querySelector(".media img");
   ok("fallback: starts on the camera stream", img.src.includes("/api/camera_proxy_stream/"), img.src);
 
-  // the camera is offline -> the <img> errors
+  // the stream fails -> fall back to a single still frame before giving up on
+  // the camera (the printer caps simultaneous stream viewers, so a still can
+  // succeed where the stream cannot)
   img.dispatchEvent(new dom.window.Event("error"));
   img = card.shadowRoot.querySelector(".media img");
-  ok("fallback: drops to the cover image", !!img && img.src.includes("/api/image_proxy/"), img && img.src);
+  ok("fallback: drops to a camera still",
+     !!img && img.src.includes("/api/camera_proxy/") && !img.src.includes("_stream"),
+     img && img.src);
+
+  // the still fails too -> fall back to the cover image
+  img.dispatchEvent(new dom.window.Event("error"));
+  img = card.shadowRoot.querySelector(".media img");
+  ok("fallback: then the cover image", !!img && img.src.includes("/api/image_proxy/"), img && img.src);
 
   // the cover image fails too -> the media area disappears entirely
   img.dispatchEvent(new dom.window.Event("error"));
@@ -391,6 +400,109 @@ console.log("\n--- camera visibility ---");
     ok("no cover: toggle opens the stream", c.shadowRoot.querySelector(".media img").src.includes("/api/camera_proxy_stream/"));
     c.remove();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Regressions reported against a live instance
+// ---------------------------------------------------------------------------
+console.log("\n--- reported regressions ---");
+{
+  // A new print must not keep showing the previous print's thumbnail.
+  //
+  // HA builds an image entity's entity_picture as
+  // /api/image_proxy/<id>?token=<t> and rotates that token on a 5-minute timer,
+  // so it does NOT change when the image content changes. Only the entity's
+  // state (image_last_updated) does.
+  const { hass } = makeHass("printing");
+  const card = dom.window.document.createElement("elegoo-printer-card");
+  card.setConfig({ type: "custom:elegoo-printer-card", device_id: DEV });
+  dom.window.document.body.appendChild(card);
+  card.hass = hass;
+
+  const first = card.shadowRoot.querySelector(".media img").src;
+  ok("cover: url is cache-keyed on last-updated", first.includes("_ts="), first);
+
+  // new print: same entity_picture (same token), new state
+  const cover = hass.states[`image.${P}_cover_image`];
+  hass.states = {
+    ...hass.states,
+    [`image.${P}_cover_image`]: { ...cover, state: "2026-09-16T15:40:00+00:00" },
+  };
+  card.hass = hass;
+  const second = card.shadowRoot.querySelector(".media img").src;
+  ok("cover: identical entity_picture still yields a new url", second !== first, `${first} -> ${second}`);
+  ok("cover: new url carries the new timestamp", second.includes(encodeURIComponent("2026-09-16T15:40:00+00:00")), second);
+
+  // an unchanged image must NOT churn the element (that would restart loading)
+  const before = card.shadowRoot.querySelector(".media img");
+  card.hass = { ...hass };
+  ok("cover: unchanged image reuses the same element", card.shadowRoot.querySelector(".media img") === before);
+  card.remove();
+}
+
+{
+  // "Show camera" that fails must say so, not silently revert to the cover
+  // image -- which is indistinguishable from the button doing nothing.
+  const { hass } = makeHass("printing");
+  hass.states[`sensor.${P}_video_stream_connected`] = { state: "2", attributes: {} };
+  hass.states[`sensor.${P}_video_stream_max`] = { state: "2", attributes: {} };
+  hass.entities[`sensor.${P}_video_stream_connected`] = { device_id: DEV, platform: "elegoo_printer" };
+  hass.entities[`sensor.${P}_video_stream_max`] = { device_id: DEV, platform: "elegoo_printer" };
+
+  const card = dom.window.document.createElement("elegoo-printer-card");
+  card.setConfig({ type: "custom:elegoo-printer-card", device_id: DEV });
+  dom.window.document.body.appendChild(card);
+  card.hass = hass;
+
+  click(card.shadowRoot.querySelector('[data-action="camera-toggle"]'));
+  let img = card.shadowRoot.querySelector(".media img");
+  ok("show camera: opens the stream", img.src.includes("camera_proxy_stream"), img.src);
+
+  img.dispatchEvent(new dom.window.Event("error"));         // stream fails
+  img = card.shadowRoot.querySelector(".media img");
+  ok("show camera: tries a still frame", !!img && !img.src.includes("_stream"), img && img.src);
+
+  img.dispatchEvent(new dom.window.Event("error"));         // still fails too
+  ok("show camera: no silent revert to the cover image", !card.shadowRoot.querySelector(".media img"));
+  const err = card.shadowRoot.querySelector(".media-error");
+  ok("show camera: reports the failure", !!err);
+  ok("show camera: names the stream limit",
+     /2 of 2/.test(err.textContent), JSON.stringify(err && err.textContent));
+  ok("show camera: offers a retry", !!card.shadowRoot.querySelector('[data-action="camera-retry"]'));
+  ok("show camera: still offers Hide",
+     !!Array.from(card.shadowRoot.querySelectorAll("button")).find((b) => b.textContent.includes("Hide camera")));
+
+  // retry clears the remembered failures and tries the stream again
+  click(card.shadowRoot.querySelector('[data-action="camera-retry"]'));
+  img = card.shadowRoot.querySelector(".media img");
+  ok("show camera: retry reopens the stream", !!img && img.src.includes("camera_proxy_stream"), img && img.src);
+
+  // hiding after an error returns to the cover image
+  img.dispatchEvent(new dom.window.Event("error"));
+  img = card.shadowRoot.querySelector(".media img");
+  img.dispatchEvent(new dom.window.Event("error"));
+  click(Array.from(card.shadowRoot.querySelectorAll("button")).find((b) => b.textContent.includes("Hide camera")));
+  ok("show camera: hiding after a failure restores the cover image",
+     !!card.shadowRoot.querySelector(".media img") &&
+     card.shadowRoot.querySelector(".media img").src.includes("/api/image_proxy/"));
+  card.remove();
+}
+
+{
+  // In an automatic mode nobody pressed anything, so a quiet fall back to the
+  // cover image is still the right behaviour.
+  const { hass } = makeHass("printing");
+  const card = dom.window.document.createElement("elegoo-printer-card");
+  card.setConfig({ type: "custom:elegoo-printer-card", device_id: DEV, show_camera: "always" });
+  dom.window.document.body.appendChild(card);
+  card.hass = hass;
+  let img = card.shadowRoot.querySelector(".media img");
+  img.dispatchEvent(new dom.window.Event("error"));
+  img = card.shadowRoot.querySelector(".media img");
+  img.dispatchEvent(new dom.window.Event("error"));
+  ok("auto mode: falls back quietly, no error panel", !card.shadowRoot.querySelector(".media-error"));
+  ok("auto mode: shows the cover image", card.shadowRoot.querySelector(".media img").src.includes("/api/image_proxy/"));
+  card.remove();
 }
 
 // ---------------------------------------------------------------------------

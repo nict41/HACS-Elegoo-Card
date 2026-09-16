@@ -10,7 +10,7 @@
  * @license MIT
  */
 
-const CARD_VERSION = "1.1.0";
+const CARD_VERSION = "1.1.1";
 
 /* ===========================================================================
  * ENTITY RESOLUTION TABLE
@@ -82,6 +82,10 @@ const KEY_DEFS = {
   // --- filament / Canvas AMS (sensor, CC2 only) ---------------------------
   active_filament_color: { domain: "sensor", names: ["active_filament_color"] },
   active_tray_id: { domain: "sensor", names: ["active_tray_id"] },
+
+  // --- video stream capacity (sensor, V3 only, diagnostic) ----------------
+  video_stream_connected: { domain: "sensor", names: ["video_stream_connected"] },
+  video_stream_max: { domain: "sensor", names: ["video_stream_max"] },
 
   // --- connectivity (binary_sensor) ---------------------------------------
   sdcp_status: { domain: "binary_sensor", names: ["sdcp_status"] },
@@ -220,6 +224,21 @@ function localizeState(hass, stateObj) {
     /* fall through to the plain prettifier */
   }
   return prettify(stateObj.state);
+}
+
+/**
+ * Append a cache-busting key to a media URL.
+ *
+ * An image entity's `entity_picture` is only `/api/image_proxy/<id>?token=<t>`,
+ * and Home Assistant rotates that token on a fixed 5-minute timer
+ * (TOKEN_CHANGE_INTERVAL) -- it does NOT change when the underlying image does.
+ * The entity's *state* is `image_last_updated`, which does. Without this, a new
+ * print reuses the previous print's URL and the browser serves the stale
+ * cached thumbnail.
+ */
+function withCacheKey(url, key) {
+  if (!url || !key) return url;
+  return url + (url.indexOf("?") >= 0 ? "&" : "?") + "_ts=" + encodeURIComponent(key);
 }
 
 /** A colour string that is safe to drop into a style attribute. */
@@ -768,6 +787,27 @@ const CARD_STYLES = `
   /* --- camera toggle ------------------------------------------------------ */
   .media-actions { position: absolute; right: 8px; bottom: 8px; }
   .media-bar { display: flex; justify-content: center; padding: 10px 16px 0; }
+  .media-error {
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin: 12px 16px 0;
+    padding: 14px;
+    border-radius: 10px;
+    text-align: center;
+    background: var(--secondary-background-color);
+  }
+  .media-error-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--primary-text-color);
+  }
+  .media-error-body {
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--secondary-text-color);
+  }
+  .media-error-actions { display: flex; gap: 8px; margin-top: 4px; }
   button.btn.btn--sm {
     padding: 4px 10px;
     font-size: 0.74rem;
@@ -1198,9 +1238,11 @@ class ElegooPrinterCard extends HTMLElement {
       this._renderHeader(deviceId, status),
       media.target
         ? '<div class="media" id="media"></div>'
-        : media.cameraToggle === "show"
-          ? '<div class="media-bar">' + this._cameraToggleButton("show") + "</div>"
-          : "",
+        : media.cameraError
+          ? this._renderCameraError(media.cameraToggle)
+          : media.cameraToggle === "show"
+            ? '<div class="media-bar">' + this._cameraToggleButton("show") + "</div>"
+            : "",
     ];
 
     const body = [];
@@ -1269,24 +1311,40 @@ class ElegooPrinterCard extends HTMLElement {
     const coverPicture =
       isUsable(cover) && cover.attributes ? cover.attributes.entity_picture : null;
 
-    const cameraTarget = cameraPicture
-      ? {
+    // Camera sources, best first. The printer only allows a limited number of
+    // simultaneous video viewers, so the MJPEG stream can fail while a single
+    // still frame still succeeds -- try the stream, then fall back to a still
+    // rather than giving up on the camera entirely.
+    const cameraSources = [];
+    if (cameraPicture) {
+      const streamSrc = cameraPicture.replace(
+        "/api/camera_proxy/",
+        "/api/camera_proxy_stream/"
+      );
+      if (this._config.camera_live && streamSrc !== cameraPicture) {
+        cameraSources.push({
           kind: "camera",
           entity: this._entities.chamber_camera,
           label: "Chamber camera",
-          // camera_proxy_stream serves MJPEG, which a plain <img> renders
-          // live without pulling in any streaming dependency.
-          src: this._config.camera_live
-            ? cameraPicture.replace("/api/camera_proxy/", "/api/camera_proxy_stream/")
-            : cameraPicture,
-        }
-      : null;
+          src: streamSrc,
+        });
+      }
+      cameraSources.push({
+        kind: "camera",
+        entity: this._entities.chamber_camera,
+        label: this._config.camera_live ? "Chamber camera (still)" : "Chamber camera",
+        src: cameraPicture,
+      });
+    }
+
     const coverTarget = coverPicture
       ? {
           kind: "image",
           entity: this._entities.cover_image,
           label: "Current job",
-          src: coverPicture,
+          // Keyed on the entity's state (image_last_updated) so a new print's
+          // thumbnail actually replaces the previous one -- see withCacheKey.
+          src: withCacheKey(coverPicture, cover.state),
         }
       : null;
 
@@ -1294,30 +1352,58 @@ class ElegooPrinterCard extends HTMLElement {
     const autoCamera = mode === "always" || (mode === "printing" && status.printing);
     // With the camera off, it is left out of the candidate list entirely, so no
     // <img> is ever created for it and nothing streams.
-    const wantCamera = !!cameraTarget && (autoCamera || this._cameraRevealed);
-    const ordered = wantCamera ? [cameraTarget, coverTarget] : [coverTarget];
+    const wantCamera = cameraSources.length > 0 && (autoCamera || this._cameraRevealed);
 
     // Failures are remembered per source URL rather than per entity: the proxy
     // token rotates periodically, so a camera that comes back is retried on the
     // next token instead of staying hidden until the dashboard is reloaded.
     let target = null;
-    for (const candidate of ordered) {
-      if (candidate && !this._mediaFailed[candidate.src]) {
-        target = candidate;
-        break;
-      }
+    let cameraError = false;
+    if (wantCamera) {
+      target = cameraSources.find((source) => !this._mediaFailed[source.src]) || null;
+      // Silently swapping in the cover image after someone presses "Show
+      // camera" looks exactly like the button doing nothing, so an explicit
+      // request that fails reports the failure instead.
+      cameraError = !target && this._cameraRevealed;
+    }
+    if (!target && !cameraError && coverTarget && !this._mediaFailed[coverTarget.src]) {
+      target = coverTarget;
     }
 
+    const showingCamera = !!target && target.kind === "camera";
     return {
       target,
+      cameraError,
       // Only offer the manual toggle when the camera is not already being
       // shown automatically.
-      cameraToggle: cameraTarget && !autoCamera
-        ? target && target.kind === "camera"
+      cameraToggle: cameraSources.length && !autoCamera
+        ? showingCamera || cameraError
           ? "hide"
           : "show"
         : null,
     };
+  }
+
+  /** Explains a failed camera request instead of quietly reverting. */
+  _renderCameraError(cameraToggle) {
+    const connected = numState(this._st("video_stream_connected"));
+    const max = numState(this._st("video_stream_max"));
+    const atCapacity = connected !== null && max !== null && max > 0 && connected >= max;
+    const detail = atCapacity
+      ? "The printer is already serving " + connected + " of " + max +
+        " allowed video streams. Close another viewer and try again."
+      : "The printer did not return a video stream. It may be busy, off, or " +
+        "still starting up.";
+
+    return (
+      '<div class="media-bar media-error">' +
+      '<div class="media-error-title">Camera unavailable</div>' +
+      '<div class="media-error-body">' + esc(detail) + "</div>" +
+      '<div class="media-error-actions">' +
+      '<button class="btn btn--sm" type="button" data-action="camera-retry">Try again</button>' +
+      (cameraToggle === "hide" ? this._cameraToggleButton("hide") : "") +
+      "</div></div>"
+    );
   }
 
   _cameraToggleButton(mode) {
@@ -1832,6 +1918,16 @@ class ElegooPrinterCard extends HTMLElement {
     if (action === "camera-toggle") {
       this._cameraRevealed = !this._cameraRevealed;
       if (!this._cameraRevealed) this._releaseMedia();
+      // Forget past failures so re-showing actually retries.
+      this._mediaFailed = Object.create(null);
+      this._fingerprint = null;
+      this._update();
+      return;
+    }
+
+    if (action === "camera-retry") {
+      this._mediaFailed = Object.create(null);
+      this._cameraRevealed = true;
       this._fingerprint = null;
       this._update();
       return;

@@ -204,7 +204,7 @@ Built against **elegoo_printer v2.12.2**. Not every printer exposes every key.
 | Job           | `filename`, `percent_complete`, `current_layer`, `total_layers`, `remaining_layers`, `current_ticks`, `total_ticks`, `ticks_remaining`, `begin_time`, `end_time` |
 | Temperatures  | `nozzle_temp`, `bed_temp`, `temp_of_box`, `temp_of_uvled`, `vat_temp`, `vat_temp_target`                                      |
 | Fans / speed  | `model_fan_speed`, `aux_fan_speed`, `box_fan_speed`, `print_speed_pct`                                                        |
-| Connectivity  | `sdcp_status`, `ams_connected`                                                                                                |
+| Connectivity  | `sdcp_status`, `ams_connected`, `video_stream_connected`, `video_stream_max`                                                                                                |
 | Media         | `cover_image`, `chamber_camera`                                                                                               |
 | Filament      | `active_filament_color`, `active_tray_id`, `a1..a4_color`, `a1..a4_name`, `a1..a4_attributes`                                  |
 | Controls      | `second_light`, `print_speed`, `target_nozzle_temp`, `target_bed_temp`, `pause_print`, `resume_print`, `stop_print`, `home_all`, `home_x`, `home_y`, `home_z`, `model_fan`, `auxiliary_fan`, `box_fan` |
@@ -219,6 +219,12 @@ model, or it is currently `unavailable`. The pause/resume/stop buttons are gated
 by the integration itself; the card disables them rather than guessing when they
 apply. Resin printers have no nozzle/bed, V1/MQTT printers have no homing
 buttons, and the Canvas slots only exist on CC2 printers with an AMS.
+
+**Pressing *Show camera* reports "Camera unavailable".** The printer allows
+only a limited number of simultaneous video viewers. If the card says it is
+serving *n of n* streams, close another viewer (the Elegoo app, a browser tab,
+another dashboard) and press *Try again*. The card tries the live stream first
+and falls back to a single still frame before reporting failure.
 
 **There is no camera.** That is the default — set `show_camera` to `printing`
 or `always`, or press *Show camera* on the card.

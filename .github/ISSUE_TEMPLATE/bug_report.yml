@@ -13,8 +13,8 @@ body:
     id: card-version
     attributes:
       label: Card version
-      description: Shown in your browser console on load, e.g. `ELEGOO-PRINTER-CARD 1.1.0`.
-      placeholder: "1.1.0"
+      description: Shown in your browser console on load, e.g. `ELEGOO-PRINTER-CARD 1.1.1`.
+      placeholder: "1.1.1"
     validations:
       required: true
 
