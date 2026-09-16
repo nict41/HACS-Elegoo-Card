@@ -83,6 +83,20 @@ function makeHass(scenario) {
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = "") => { if (cond) pass++; else { fail++; console.log(`  FAIL ${name} ${extra}`); } };
 
+// Control handlers resolve a confirmation promise before calling a service, so
+// interactions settle on the microtask queue rather than synchronously.
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+const dialog = (card) => card.shadowRoot.querySelector(".dialog-backdrop");
+const dialogOpen = (card) => { const d = dialog(card); return !!d && !d.hasAttribute("hidden"); };
+const dialogText = (card) => dialog(card).querySelector(".dialog-title").textContent;
+const clickDialog = (card, which) =>
+  card.shadowRoot.querySelector(`[data-dialog="${which}"]`)
+    .dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
+const click = (el) => el.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, composed: true }));
+const change = (el) => el.dispatchEvent(new dom.window.Event("change", { bubbles: true, composed: true }));
+
+async function main() {
+
 for (const scenario of ["idle", "printing", "paused", "error", "offline"]) {
   const { hass, serviceCalls } = makeHass(scenario);
   const card = dom.window.document.createElement("elegoo-printer-card");
@@ -106,11 +120,11 @@ for (const scenario of ["idle", "printing", "paused", "error", "offline"]) {
 
   const img = sr.querySelector(".media img");
   ok(`${scenario}: media present`, !!img);
-  if (scenario === "printing") {
-    ok("printing: uses camera stream", img.src.includes("/api/camera_proxy_stream/"), img.src);
-  } else {
-    ok(`${scenario}: uses cover image`, img.src.includes("/api/image_proxy/"), img.src);
-  }
+  // The camera is opt-in, so the cover image is used in every scenario and no
+  // camera stream is ever opened by default.
+  ok(`${scenario}: uses cover image by default`, img.src.includes("/api/image_proxy/"), img.src);
+  ok(`${scenario}: no camera stream opened by default`, !sr.innerHTML.includes("camera_proxy_stream"));
+  ok(`${scenario}: offers a Show camera button`, !!Array.from(sr.querySelectorAll("button")).find((b) => b.textContent.includes("Show camera")));
 
   if (scenario === "printing") {
     ok("printing: progress bar 42%", /width:\s*42\.0%/.test(html), html.match(/width:[^"]*/g));
@@ -144,38 +158,61 @@ for (const scenario of ["idle", "printing", "paused", "error", "offline"]) {
   ok(`${scenario}: pause disabled iff not printing`, pauseBtn.disabled === (scenario !== "printing"));
 
   // --- interactions -------------------------------------------------------
+  // Print actions are confirmed by default.
   serviceCalls.length = 0;
   if (scenario === "printing") {
-    pauseBtn.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, composed: true }));
-    ok("click pause -> button.press", JSON.stringify(serviceCalls[0]) === JSON.stringify(["button","press",{entity_id:`button.${P}_pause_print`}]), JSON.stringify(serviceCalls));
+    click(pauseBtn);
+    await flush();
+    ok("printing: pause opens a confirmation", dialogOpen(card));
+    ok("printing: confirmation names the action", dialogText(card) === "Pause the print?", dialogText(card));
+    ok("printing: nothing called before confirming", serviceCalls.length === 0, JSON.stringify(serviceCalls));
+    clickDialog(card, "cancel");
+    await flush();
+    ok("printing: cancel calls nothing", serviceCalls.length === 0, JSON.stringify(serviceCalls));
+    ok("printing: cancel closes the dialog", !dialogOpen(card));
+
+    click(pauseBtn);
+    await flush();
+    clickDialog(card, "confirm");
+    await flush();
+    ok("printing: confirm -> button.press",
+       JSON.stringify(serviceCalls[0]) === JSON.stringify(["button","press",{entity_id:`button.${P}_pause_print`}]),
+       JSON.stringify(serviceCalls));
+    ok("printing: confirm closes the dialog", !dialogOpen(card));
   }
+
+  // Unconfirmed controls fire straight away.
   serviceCalls.length = 0;
   const sel = sr.querySelector('select[data-action="select-option"]');
   sel.value = "Sport";
-  sel.dispatchEvent(new dom.window.Event("change", { bubbles: true, composed: true }));
+  change(sel);
+  await flush();
   ok(`${scenario}: select -> select.select_option`, JSON.stringify(serviceCalls[0]) === JSON.stringify(["select","select_option",{entity_id:`select.${P}_print_speed`,option:"Sport"}]), JSON.stringify(serviceCalls));
 
   serviceCalls.length = 0;
   const num = sr.querySelector('input[data-action="set-number"]');
   num.value = "230";
-  num.dispatchEvent(new dom.window.Event("change", { bubbles: true, composed: true }));
+  change(num);
+  await flush();
   ok(`${scenario}: number -> number.set_value`, serviceCalls[0] && serviceCalls[0][1] === "set_value" && serviceCalls[0][2].value === 230, JSON.stringify(serviceCalls));
 
   serviceCalls.length = 0;
   const slider = sr.querySelector('input[data-action="fan-percentage"]');
   slider.value = "55";
-  slider.dispatchEvent(new dom.window.Event("change", { bubbles: true, composed: true }));
+  change(slider);
+  await flush();
   ok(`${scenario}: slider -> fan.set_percentage`, serviceCalls[0] && serviceCalls[0][1] === "set_percentage" && serviceCalls[0][2].percentage === 55, JSON.stringify(serviceCalls));
 
   serviceCalls.length = 0;
   const lightBtn = Array.from(sr.querySelectorAll("button")).find((b) => b.textContent.includes("Chamber light"));
-  lightBtn.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, composed: true }));
-  ok(`${scenario}: light -> light.toggle`, serviceCalls[0] && serviceCalls[0][0] === "light" && serviceCalls[0][1] === "toggle");
+  click(lightBtn);
+  await flush();
+  ok(`${scenario}: light -> light.toggle`, serviceCalls[0] && serviceCalls[0][0] === "light" && serviceCalls[0][1] === "toggle", JSON.stringify(serviceCalls));
 
   // more-info event
   let moreInfo = null;
   card.addEventListener("hass-more-info", (ev) => { moreInfo = ev.detail.entityId; });
-  sr.querySelector(".badge").dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, composed: true }));
+  click(sr.querySelector(".badge"));
   ok(`${scenario}: badge -> more-info`, moreInfo === `sensor.${P}_current_status`, moreInfo);
 
   card.remove();
@@ -244,7 +281,7 @@ console.log("\n--- degradation ---");
   console.log("\n--- media fallback ---");
   const { hass } = makeHass("printing");
   const card = dom.window.document.createElement("elegoo-printer-card");
-  card.setConfig({ type: "custom:elegoo-printer-card", device_id: DEV });
+  card.setConfig({ type: "custom:elegoo-printer-card", device_id: DEV, show_camera: "always" });
   dom.window.document.body.appendChild(card);
   card.hass = hass;
 
@@ -270,6 +307,201 @@ console.log("\n--- degradation ---");
   card.remove();
 }
 
+// ---------------------------------------------------------------------------
+// Camera visibility
+// ---------------------------------------------------------------------------
+console.log("\n--- camera visibility ---");
+{
+  const mk = (config, scenario = "printing") => {
+    const { hass, serviceCalls } = makeHass(scenario);
+    const card = dom.window.document.createElement("elegoo-printer-card");
+    card.setConfig({ type: "custom:elegoo-printer-card", device_id: DEV, ...config });
+    dom.window.document.body.appendChild(card);
+    card.hass = hass;
+    return { card, hass, serviceCalls };
+  };
+
+  // default: never stream
+  let { card } = mk({});
+  ok("never: no stream while printing", !card.shadowRoot.innerHTML.includes("camera_proxy_stream"));
+
+  // the Show camera button opens the stream on demand, and hides it again
+  const showBtn = Array.from(card.shadowRoot.querySelectorAll("button")).find((b) => b.textContent.includes("Show camera"));
+  click(showBtn);
+  let img = card.shadowRoot.querySelector(".media img");
+  ok("never: Show camera opens the stream", !!img && img.src.includes("/api/camera_proxy_stream/"), img && img.src);
+  const streamEl = img;
+  const hideBtn = Array.from(card.shadowRoot.querySelectorAll("button")).find((b) => b.textContent.includes("Hide camera"));
+  ok("never: Hide camera button appears", !!hideBtn);
+  click(hideBtn);
+  ok("never: hiding closes the stream", !card.shadowRoot.innerHTML.includes("camera_proxy_stream"));
+  // the detached element must have had its src cleared, or it keeps streaming
+  ok("never: detached stream element had its src cleared", !streamEl.hasAttribute("src"), streamEl.getAttribute("src"));
+  ok("never: falls back to the cover image", card.shadowRoot.querySelector(".media img").src.includes("/api/image_proxy/"));
+  card.remove();
+
+  // printing: auto while printing, cover image when idle
+  ({ card } = mk({ show_camera: "printing" }, "printing"));
+  ok("printing mode: streams while printing", card.shadowRoot.querySelector(".media img").src.includes("/api/camera_proxy_stream/"));
+  ok("printing mode: no manual toggle while auto", !Array.from(card.shadowRoot.querySelectorAll("button")).some((b) => /camera/i.test(b.textContent)));
+  card.remove();
+  ({ card } = mk({ show_camera: "printing" }, "idle"));
+  ok("printing mode: cover image when idle", card.shadowRoot.querySelector(".media img").src.includes("/api/image_proxy/"));
+  card.remove();
+
+  // always
+  ({ card } = mk({ show_camera: "always" }, "idle"));
+  ok("always: streams even when idle", card.shadowRoot.querySelector(".media img").src.includes("/api/camera_proxy_stream/"));
+  card.remove();
+
+  // boolean and legacy spellings
+  ({ card } = mk({ show_camera: true }, "idle"));
+  ok("show_camera: true == always", card.shadowRoot.querySelector(".media img").src.includes("/api/camera_proxy_stream/"));
+  card.remove();
+  ({ card } = mk({ show_camera: false }, "printing"));
+  ok("show_camera: false == never", !card.shadowRoot.innerHTML.includes("camera_proxy_stream"));
+  card.remove();
+  ({ card } = mk({ camera_always: true }, "idle"));
+  ok("legacy camera_always maps to always", card.shadowRoot.querySelector(".media img").src.includes("/api/camera_proxy_stream/"));
+  card.remove();
+
+  // camera_live: false uses still snapshots
+  ({ card } = mk({ show_camera: "always", camera_live: false }, "printing"));
+  img = card.shadowRoot.querySelector(".media img");
+  ok("camera_live false: snapshot not stream", img.src.includes("/api/camera_proxy/") && !img.src.includes("_stream"), img.src);
+  card.remove();
+
+  // show_media: false wins over everything
+  ({ card } = mk({ show_media: false, show_camera: "always" }, "printing"));
+  ok("show_media false: no media at all", !card.shadowRoot.querySelector(".media") && !card.shadowRoot.querySelector(".media-bar"));
+  card.remove();
+
+  // a printer with no cover image and the camera off still offers the toggle
+  {
+    const { hass } = makeHass("printing");
+    delete hass.states[`image.${P}_cover_image`];
+    delete hass.entities[`image.${P}_cover_image`];
+    const c = dom.window.document.createElement("elegoo-printer-card");
+    c.setConfig({ type: "custom:elegoo-printer-card", device_id: DEV });
+    dom.window.document.body.appendChild(c);
+    c.hass = hass;
+    ok("no cover: shows a Show camera bar", !!c.shadowRoot.querySelector(".media-bar"));
+    ok("no cover: nothing streaming yet", !c.shadowRoot.innerHTML.includes("camera_proxy_stream"));
+    click(c.shadowRoot.querySelector('[data-action="camera-toggle"]'));
+    ok("no cover: toggle opens the stream", c.shadowRoot.querySelector(".media img").src.includes("/api/camera_proxy_stream/"));
+    c.remove();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Confirmation dialogs
+// ---------------------------------------------------------------------------
+console.log("\n--- confirmations ---");
+{
+  const mk = (config) => {
+    const { hass, serviceCalls } = makeHass("printing");
+    const card = dom.window.document.createElement("elegoo-printer-card");
+    card.setConfig({ type: "custom:elegoo-printer-card", device_id: DEV, ...config });
+    dom.window.document.body.appendChild(card);
+    card.hass = hass;
+    return { card, serviceCalls };
+  };
+  const btn = (card, text) => Array.from(card.shadowRoot.querySelectorAll("button")).find((b) => b.textContent.includes(text));
+
+  // stop is the dangerous one
+  let { card, serviceCalls } = mk({});
+  click(btn(card, "Stop"));
+  await flush();
+  ok("stop: confirmation opens", dialogOpen(card));
+  ok("stop: wording is specific", dialogText(card) === "Stop the print?", dialogText(card));
+  ok("stop: body warns it cannot be undone", /cannot be undone/i.test(card.shadowRoot.querySelector(".dialog-body").textContent));
+  ok("stop: confirm button is danger-toned", card.shadowRoot.querySelector('[data-dialog="confirm"]').getAttribute("data-tone") === "danger");
+  ok("stop: cancel is focused, not confirm", card.shadowRoot.activeElement === card.shadowRoot.querySelector('[data-dialog="cancel"]'));
+  clickDialog(card, "confirm");
+  await flush();
+  ok("stop: confirm fires button.press", serviceCalls[0] && serviceCalls[0][2].entity_id === `button.${P}_stop_print`, JSON.stringify(serviceCalls));
+  card.remove();
+
+  // escape cancels
+  ({ card, serviceCalls } = mk({}));
+  click(btn(card, "Stop"));
+  await flush();
+  dialog(card).dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await flush();
+  ok("escape closes the dialog", !dialogOpen(card));
+  ok("escape calls nothing", serviceCalls.length === 0, JSON.stringify(serviceCalls));
+  card.remove();
+
+  // backdrop click cancels
+  ({ card, serviceCalls } = mk({}));
+  click(btn(card, "Stop"));
+  await flush();
+  dialog(card).dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
+  await flush();
+  ok("backdrop click closes the dialog", !dialogOpen(card));
+  ok("backdrop click calls nothing", serviceCalls.length === 0);
+  card.remove();
+
+  // confirm_actions: false disables all prompts
+  ({ card, serviceCalls } = mk({ confirm_actions: false }));
+  click(btn(card, "Stop"));
+  await flush();
+  ok("confirm_actions false: no dialog", !dialogOpen(card));
+  ok("confirm_actions false: fires immediately", serviceCalls[0] && serviceCalls[0][2].entity_id === `button.${P}_stop_print`, JSON.stringify(serviceCalls));
+  card.remove();
+
+  // confirm_actions: list confirms exactly those keys
+  ({ card, serviceCalls } = mk({ confirm_actions: ["stop_print", "second_light"] }));
+  click(btn(card, "Pause"));
+  await flush();
+  ok("list: pause is not confirmed", !dialogOpen(card));
+  ok("list: pause fires immediately", serviceCalls[0] && serviceCalls[0][2].entity_id === `button.${P}_pause_print`);
+  serviceCalls.length = 0;
+  click(btn(card, "Chamber light"));
+  await flush();
+  ok("list: light is confirmed", dialogOpen(card));
+  ok("list: light not called before confirming", serviceCalls.length === 0);
+  clickDialog(card, "confirm");
+  await flush();
+  ok("list: light fires after confirming", serviceCalls[0] && serviceCalls[0][0] === "light");
+  card.remove();
+
+  // cancelling an input reverts the widget to the entity's real state
+  ({ card, serviceCalls } = mk({ confirm_actions: ["print_speed", "target_nozzle_temp"] }));
+  const sel = card.shadowRoot.querySelector('select[data-action="select-option"]');
+  ok("revert: select starts at Balanced", sel.value === "Balanced", sel.value);
+  sel.value = "Ludicrous";
+  change(sel);
+  await flush();
+  ok("revert: select change is confirmed", dialogOpen(card));
+  clickDialog(card, "cancel");
+  await flush();
+  ok("revert: nothing called", serviceCalls.length === 0, JSON.stringify(serviceCalls));
+  ok("revert: select snapped back", card.shadowRoot.querySelector('select[data-action="select-option"]').value === "Balanced",
+     card.shadowRoot.querySelector('select[data-action="select-option"]').value);
+
+  const num = card.shadowRoot.querySelector('input[data-action="set-number"]');
+  num.value = "300";
+  change(num);
+  await flush();
+  clickDialog(card, "cancel");
+  await flush();
+  ok("revert: number snapped back", card.shadowRoot.querySelector('input[data-action="set-number"]').value === "215",
+     card.shadowRoot.querySelector('input[data-action="set-number"]').value);
+  card.remove();
+
+  // invalid config is rejected
+  {
+    const c = dom.window.document.createElement("elegoo-printer-card");
+    let threw = false;
+    try { c.setConfig({ type: "x", show_camera: "sometimes" }); } catch (_e) { threw = true; }
+    ok("rejects a bad show_camera", threw);
+    threw = false;
+    try { c.setConfig({ type: "x", confirm_actions: "yes" }); } catch (_e) { threw = true; }
+    ok("rejects a bad confirm_actions", threw);
+  }
+}
+
 // getStubConfig / customCards registration
 {
   const { hass } = makeHass("idle");
@@ -289,3 +521,6 @@ console.log("\n--- degradation ---");
 }
 console.log(`\n=== render: ${pass} passed, ${fail} failed ===`);
 process.exitCode = fail ? 1 : 0;
+}
+
+main();

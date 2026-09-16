@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Elegoo Printer Card">
+  <title>Elegoo Printer Card</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#2f3a4d"/>
+      <stop offset="1" stop-color="#141a24"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5ccbf9"/>
+      <stop offset="1" stop-color="#039be5"/>
+    </linearGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d4dbe5"/>
+      <stop offset="1" stop-color="#8e9aab"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="256" height="256" rx="58" fill="url(#bg)"/>
+
+  <!-- gantry rail and carriage -->
+  <rect x="38" y="62" width="180" height="15" rx="7.5" fill="url(#steel)"/>
+  <rect x="100" y="55" width="56" height="30" rx="10" fill="#e8edf3"/>
+
+  <!-- nozzle -->
+  <path d="M112 85 h32 l-11 22 a5 5 0 0 1 -10 0 Z" fill="url(#accent)"/>
+
+  <!-- extruded filament -->
+  <rect x="124" y="104" width="8" height="30" rx="4" fill="url(#accent)" opacity="0.65"/>
+
+  <!-- printed part, built up in layers -->
+  <rect x="104" y="130" width="48" height="15" rx="4" fill="url(#accent)" opacity="0.72"/>
+  <rect x="94"  y="148" width="68" height="15" rx="4" fill="url(#accent)" opacity="0.86"/>
+  <rect x="84"  y="166" width="88" height="15" rx="4" fill="url(#accent)"/>
+
+  <!-- build plate -->
+  <rect x="56" y="188" width="144" height="14" rx="7" fill="url(#steel)"/>
+</svg>

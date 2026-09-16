@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="img" aria-label="Elegoo Printer Card">
+  <title>Elegoo Printer Card</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f3a4d"/><stop offset="0.55" stop-color="#1b2230"/><stop offset="1" stop-color="#121722"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5ccbf9"/><stop offset="1" stop-color="#039be5"/>
+    </linearGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d4dbe5"/><stop offset="1" stop-color="#8e9aab"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="300" fill="url(#bg)"/>
+  <g opacity="0.06" stroke="#7fd4fb" stroke-width="2">
+    <path d="M0 232 H1200 M0 262 H1200 M0 202 H1200"/>
+  </g>
+
+  <g transform="translate(96 54) scale(0.75)">
+    <rect x="38" y="62" width="180" height="15" rx="7.5" fill="url(#steel)"/>
+    <rect x="100" y="55" width="56" height="30" rx="10" fill="#e8edf3"/>
+    <path d="M112 85 h32 l-11 22 a5 5 0 0 1 -10 0 Z" fill="url(#accent)"/>
+    <rect x="124" y="104" width="8" height="30" rx="4" fill="url(#accent)" opacity="0.65"/>
+    <rect x="104" y="130" width="48" height="15" rx="4" fill="url(#accent)" opacity="0.72"/>
+    <rect x="94"  y="148" width="68" height="15" rx="4" fill="url(#accent)" opacity="0.86"/>
+    <rect x="84"  y="166" width="88" height="15" rx="4" fill="url(#accent)"/>
+    <rect x="56" y="188" width="144" height="14" rx="7" fill="url(#steel)"/>
+  </g>
+
+  <g font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+    <text x="330" y="140" font-size="62" font-weight="600" fill="#f2f6fa">Elegoo Printer Card</text>
+    <text x="333" y="186" font-size="25" fill="#93a4bb">A Lovelace card for the elegoo_printer integration</text>
+    <g transform="translate(333 212)" font-size="13" letter-spacing="0.8">
+      <rect x="0"   y="0" width="158" height="30" rx="15" fill="#03a9f4" opacity="0.16"/>
+      <text x="79"  y="20" fill="#7fd4fb" text-anchor="middle">HOME ASSISTANT</text>
+      <rect x="170" y="0" width="74"  height="30" rx="15" fill="#03a9f4" opacity="0.16"/>
+      <text x="207" y="20" fill="#7fd4fb" text-anchor="middle">HACS</text>
+      <rect x="256" y="0" width="186" height="30" rx="15" fill="#03a9f4" opacity="0.16"/>
+      <text x="349" y="20" fill="#7fd4fb" text-anchor="middle">ZERO DEPENDENCIES</text>
+    </g>
+  </g>
+</svg>

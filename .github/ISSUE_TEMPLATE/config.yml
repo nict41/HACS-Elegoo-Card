@@ -1,0 +1,7 @@
+blank_issues_enabled: false
+contact_links:
+  - name: elegoo_printer integration issues
+    url: https://github.com/danielcherubini/elegoo-homeassistant/issues
+    about: >-
+      Missing, wrong or unavailable entities are almost always the integration,
+      not this card. Please report those upstream.

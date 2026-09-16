@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360">
+  <defs>
+    <linearGradient id="room" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a2130"/><stop offset="1" stop-color="#0b0f16"/></linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.34" r="0.55"><stop offset="0" stop-color="#cfe9ff" stop-opacity="0.24"/><stop offset="1" stop-color="#cfe9ff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="part" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6fc9f5"/><stop offset="1" stop-color="#0277bd"/></linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfd7e2"/><stop offset="1" stop-color="#7d8896"/></linearGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#room)"/>
+  <rect width="640" height="360" fill="url(#glow)"/>
+  <!-- chamber frame -->
+  <rect x="26" y="20" width="588" height="320" rx="10" fill="none" stroke="#2f3a4b" stroke-width="5"/>
+  <!-- gantry -->
+  <rect x="60" y="92" width="520" height="13" rx="6" fill="url(#metal)"/>
+  <rect x="286" y="84" width="68" height="34" rx="9" fill="#e3e9f1"/>
+  <path d="M302 118 h36 l-13 26 a5 5 0 0 1 -10 0 Z" fill="#9fb0c4"/>
+  <!-- build plate -->
+  <path d="M150 300 L320 258 L490 300 L320 342 Z" fill="#232e42"/>
+  <path d="M150 300 L320 258 L490 300 L320 342 Z" fill="none" stroke="#3c4d68" stroke-width="2"/>
+  <!-- part mid-print -->
+  <path d="M320 262 L392 284 L392 226 L320 204 Z" fill="#0b5c8a"/>
+  <path d="M320 262 L248 284 L248 226 L320 204 Z" fill="url(#part)"/>
+  <path d="M320 204 L392 226 L320 248 L248 226 Z" fill="#9fdcfb"/>
+  <g stroke="#082c40" stroke-width="1.2" opacity="0.38">
+    <path d="M248 238 L320 260 L392 238M248 250 L320 272 L392 250M248 262 L320 284 L392 262"/>
+  </g>
+  <text x="320" y="352" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#6c7d94" text-anchor="middle">sample chamber view</text>
+</svg>
